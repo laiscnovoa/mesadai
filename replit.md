@@ -1,4 +1,4 @@
-# Caixinha
+# MesadAI
 
 App mobile gamificado de mesada para adolescentes, inspirado no Duolingo. O responsável cria a família, define tarefas com recompensas em R$ e data de encerramento do ciclo; o adolescente completa as tarefas enviando foto como prova; o responsável aprova, aprova parcialmente ou rejeita. O sistema gamifica o processo com XP, streaks, níveis e o mascote **Cofri** (moeda animada com expressões).
 

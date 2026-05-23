@@ -223,7 +223,7 @@ export default function ParentLoginScreen() {
         <TouchableOpacity onPress={() => step > 1 ? setStep(s => s - 1) : router.replace('/')} style={styles.backBtn}>
           <Ionicons name={step > 1 ? 'arrow-back' : 'home'} size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Criar Caixinha</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Configurar MesadAI</Text>
         <Text style={[styles.stepIndicator, { color: colors.mutedForeground }]}>{step}/4</Text>
       </View>
 
@@ -238,7 +238,7 @@ export default function ParentLoginScreen() {
           <View style={styles.stepContent}>
             <Text style={styles.stepEmoji}>🏠</Text>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>Quem é você?</Text>
-            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>Vamos criar a Caixinha da sua família.</Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>Vamos configurar o MesadAI da sua família.</Text>
             <Text style={[styles.label, { color: colors.foreground }]}>Nome da família</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
@@ -375,7 +375,7 @@ export default function ParentLoginScreen() {
             >
               {loading ? <ActivityIndicator color="#ffffff" size="small" /> : (
                 <>
-                  <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Criar Caixinha</Text>
+                  <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Configurar MesadAI</Text>
                   <Ionicons name="checkmark" size={20} color={colors.primaryForeground} />
                 </>
               )}

@@ -33,7 +33,7 @@ export default function IndexScreen() {
         <View style={styles.logoCircle}>
           <Text style={styles.logoEmoji}>🪙</Text>
         </View>
-        <Text style={styles.appName}>Caixinha</Text>
+        <Text style={styles.appName}>MesadAI</Text>
         <Text style={styles.tagline}>Sua mesada, seu futuro.</Text>
       </View>
 
