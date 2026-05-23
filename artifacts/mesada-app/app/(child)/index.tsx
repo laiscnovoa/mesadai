@@ -68,7 +68,7 @@ export default function ChildMissionsScreen() {
                 </View>
                 <View style={styles.headerRight}>
                   <StreakBadge streak={streak} />
-                  <TouchableOpacity onPress={logout} style={styles.logoutBtn} testID="child-home-btn">
+                  <TouchableOpacity onPress={() => { logout(); router.replace('/'); }} style={styles.logoutBtn} testID="child-home-btn">
                     <Ionicons name="home" size={16} color="#ffffff" />
                     <Text style={styles.logoutText}>Início</Text>
                   </TouchableOpacity>
