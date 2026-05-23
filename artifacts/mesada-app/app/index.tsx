@@ -31,10 +31,10 @@ export default function IndexScreen() {
     <LinearGradient colors={['#00C472', '#00855B']} style={styles.container}>
       <View style={[styles.top, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 20) }]}>
         <View style={styles.logoCircle}>
-          <Ionicons name="cash" size={52} color="#00C472" />
+          <Text style={styles.logoEmoji}>🐷</Text>
         </View>
-        <Text style={styles.appName}>Mesada</Text>
-        <Text style={styles.tagline}>Missões, responsabilidade e recompensas</Text>
+        <Text style={styles.appName}>Caixinha</Text>
+        <Text style={styles.tagline}>Sua mesada, seu futuro.</Text>
       </View>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 40 }]}>
@@ -90,6 +90,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
   },
+  logoEmoji: { fontSize: 52 },
   appName: { fontSize: 42, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
   tagline: { fontSize: 16, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_400Regular', textAlign: 'center' },
   bottom: { paddingHorizontal: 20, gap: 12 },

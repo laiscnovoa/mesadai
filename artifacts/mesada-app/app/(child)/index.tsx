@@ -10,7 +10,15 @@ import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { TaskCard } from '@/components/TaskCard';
 import { StreakBadge } from '@/components/StreakBadge';
+import { Cofri, CofriState } from '@/components/Cofri';
 import { formatCurrency } from '@/types';
+
+function getCofriState(completed: number, total: number): CofriState {
+  if (total === 0) return 'neutral';
+  if (completed === total) return 'celebrating';
+  if (completed > total / 2) return 'happy';
+  return 'charging';
+}
 
 export default function ChildMissionsScreen() {
   const {
@@ -35,6 +43,7 @@ export default function ChildMissionsScreen() {
   const completed = missions.filter(m => m.submission?.status === 'approved' || m.submission?.status === 'partial').length;
   const total = missions.length;
   const progress = total > 0 ? completed / total : 0;
+  const cofriState = getCofriState(completed, total);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
 
@@ -54,7 +63,7 @@ export default function ChildMissionsScreen() {
             <LinearGradient colors={['#7C3AED', '#5B21B6']} style={[styles.header, { paddingTop: topPad + 12 }]}>
               <View style={styles.headerRow}>
                 <View>
-                  <Text style={styles.greeting}>Olá, {child?.name ?? 'Aventureiro'}</Text>
+                  <Text style={styles.greeting}>Olá, {child?.name ?? 'Aventureiro'}!</Text>
                   <Text style={styles.subtitle}>Suas missões de hoje</Text>
                 </View>
                 <View style={styles.headerRight}>
@@ -63,6 +72,11 @@ export default function ChildMissionsScreen() {
                     <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.7)" />
                   </TouchableOpacity>
                 </View>
+              </View>
+
+              {/* Cofri mascot */}
+              <View style={styles.cofriContainer}>
+                <Cofri state={cofriState} size={88} />
               </View>
 
               {/* XP + Balance row */}
@@ -89,7 +103,7 @@ export default function ChildMissionsScreen() {
                   <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` as any }]} />
                 </View>
                 <Text style={styles.progressText}>
-                  {total === 0 ? 'Nenhuma tarefa' : completed === total ? 'Dia completo!' : `${completed} de ${total} concluídas`}
+                  {total === 0 ? 'Nenhuma tarefa' : completed === total ? '🎉 Dia completo!' : `${completed} de ${total} concluídas`}
                 </Text>
               </View>
             </LinearGradient>
@@ -101,7 +115,7 @@ export default function ChildMissionsScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="checkmark-circle" size={56} color="#7C3AED" />
+            <Text style={styles.emptyEmoji}>🐷</Text>
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Sem missões!</Text>
             <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
               O responsável ainda não criou tarefas. Aguarde!
@@ -128,6 +142,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logoutBtn: { padding: 6 },
+  cofriContainer: { alignItems: 'center', paddingVertical: 4 },
   statsRow: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 12 },
   statItem: { flex: 1, alignItems: 'center', gap: 2 },
   statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
@@ -139,6 +154,7 @@ const styles = StyleSheet.create({
   progressText: { fontSize: 12, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_500Medium' },
   sectionTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', paddingHorizontal: 16, paddingTop: 20, marginBottom: 4 },
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 12, paddingHorizontal: 40 },
+  emptyEmoji: { fontSize: 64 },
   emptyTitle: { fontSize: 20, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   emptySub: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
 });

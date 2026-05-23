@@ -16,7 +16,7 @@ import { formatCurrency, formatDate } from '@/types';
 
 export default function ProgressScreen() {
   const {
-    getCurrentChild, currentChildId, goals, submissions, tasks,
+    getCurrentChild, currentChildId, children, goals, submissions, tasks,
     getChildBalance, getChildStreak, getChildXP, getChildLevel,
     addGoal, deleteGoal, submitAppeal,
   } = useApp();
@@ -81,6 +81,34 @@ export default function ProgressScreen() {
 
         {/* XP Bar */}
         <XPBar xp={xp} level={level} />
+
+        {/* Streaks da família */}
+        {children.length > 1 && (
+          <>
+            <View style={[styles.sectionHeader, { paddingTop: 16 }]}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🔥 Streaks da família</Text>
+            </View>
+            <View style={[styles.familyStreaksCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 16 }]}>
+              {children.map((c, idx) => {
+                const s = getChildStreak(c.id);
+                const isMe = c.id === childId;
+                return (
+                  <View key={c.id} style={[styles.siblingStreakRow, idx > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
+                    <Text style={styles.streakChildEmoji}>🐷</Text>
+                    <Text style={[styles.streakChildName, { color: colors.foreground }]}>
+                      {c.name}{isMe ? ' (eu)' : ''}
+                    </Text>
+                    <View style={styles.streakBadgeRow}>
+                      <Text style={[styles.streakCount, { color: s > 0 ? '#FF6B00' : colors.mutedForeground }]}>
+                        {s > 0 ? '🔥' : '💤'} {s} dia{s !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         {/* Goals section */}
         <View style={styles.sectionHeader}>
@@ -271,4 +299,10 @@ const styles = StyleSheet.create({
   modalContent: { padding: 20, gap: 8 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', marginTop: 8 },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: 'Inter_400Regular' },
+  familyStreaksCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden', marginBottom: 4 },
+  siblingStreakRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10 },
+  streakChildEmoji: { fontSize: 22 },
+  streakChildName: { flex: 1, fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
+  streakBadgeRow: {},
+  streakCount: { fontSize: 14, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
 });

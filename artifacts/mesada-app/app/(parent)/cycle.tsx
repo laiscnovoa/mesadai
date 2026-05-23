@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  Platform, Alert,
+  Platform, Alert, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,9 +10,30 @@ import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { formatCurrency, formatDate } from '@/types';
 
+function parseDateBR(digits: string): string | null {
+  if (digits.length !== 8) return null;
+  const day = parseInt(digits.slice(0, 2), 10);
+  const month = parseInt(digits.slice(2, 4), 10);
+  const year = parseInt(digits.slice(4, 8), 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 2024) return null;
+  const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const d = new Date(iso + 'T00:00:00');
+  if (d.getDate() !== day || d.getMonth() + 1 !== month) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (d <= today) return null;
+  return iso;
+}
+
+function fmtDateInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 export default function CycleScreen() {
   const {
-    family, children, submissions, tasks,
+    family, children, submissions,
     getChildBalance, getCycleDay, getCycleEndDate,
     closeCycle, addChild,
   } = useApp();
@@ -21,24 +42,45 @@ export default function CycleScreen() {
   const [showAddChild, setShowAddChild] = useState(false);
   const [newChildName, setNewChildName] = useState('');
   const [newChildNickname, setNewChildNickname] = useState('');
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [newEndDateInput, setNewEndDateInput] = useState('');
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const cycleDay = getCycleDay();
   const cycleEnd = getCycleEndDate();
-  const cycleProgress = family ? Math.min(1, cycleDay / family.cycleLength) : 0;
+
+  const totalDays = family && cycleEnd
+    ? Math.max(1, Math.ceil((cycleEnd.getTime() - new Date(family.cycleStartDate + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24)))
+    : 0;
+  const daysLeft = cycleEnd
+    ? Math.max(0, Math.ceil((cycleEnd.getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)))
+    : 0;
+  const cycleProgress = totalDays > 0 ? Math.min(1, cycleDay / totalDays) : 0;
 
   const handleCloseCycle = () => {
+    setNewEndDateInput('');
+    setShowCloseModal(true);
+  };
+
+  const handleConfirmClose = () => {
+    const digits = newEndDateInput.replace(/\D/g, '').slice(0, 8);
+    const iso = parseDateBR(digits);
+    if (!iso) {
+      Alert.alert('Data inválida', 'Informe uma data futura válida no formato DD/MM/AAAA.');
+      return;
+    }
     Alert.alert(
       'Fechar ciclo',
       'Isso encerrará o ciclo atual e iniciará um novo. O histórico será mantido.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Fechar ciclo',
+          text: 'Confirmar',
           style: 'destructive',
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            closeCycle();
+            closeCycle(iso);
+            setShowCloseModal(false);
           },
         },
       ]
@@ -68,32 +110,29 @@ export default function CycleScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 100 },
-        ]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 100 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Cycle Progress Card */}
         <View style={[styles.card, { backgroundColor: colors.primary }]}>
-          <Text style={styles.cardTitle}>Ciclo atual</Text>
+          <Text style={styles.cardLabel}>Ciclo atual</Text>
           {family && (
             <Text style={styles.cardDates}>
               {formatDate(family.cycleStartDate)} → {cycleEnd ? formatDate(cycleEnd.toISOString().split('T')[0]) : '-'}
             </Text>
           )}
-          <View style={styles.cycleProgress}>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${Math.round(cycleProgress * 100)}%` as any }]} />
-            </View>
-            <Text style={styles.progressLabel}>
-              Dia {cycleDay} de {family?.cycleLength ?? '-'}
+          <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { width: `${Math.round(cycleProgress * 100)}%` as any }]} />
+          </View>
+          <View style={styles.progressInfo}>
+            <Text style={styles.progressDay}>Dia {cycleDay} de {totalDays}</Text>
+            <Text style={styles.progressLeft}>
+              {daysLeft === 0 ? 'Encerra hoje!' : `${daysLeft} dia${daysLeft !== 1 ? 's' : ''} restante${daysLeft !== 1 ? 's' : ''}`}
             </Text>
           </View>
-          <Text style={styles.durationLabel}>{family?.cycleLength} dias de duração</Text>
         </View>
 
-        {/* Crianças e saldos */}
+        {/* Saldo por filho */}
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Saldo por filho(a)</Text>
         {children.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -106,7 +145,7 @@ export default function CycleScreen() {
             return (
               <View key={child.id} style={[styles.childCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={[styles.childAvatar, { backgroundColor: colors.secondary }]}>
-                  <Ionicons name="person" size={22} color={colors.primary} />
+                  <Text style={styles.childEmoji}>🐷</Text>
                 </View>
                 <View style={styles.childInfo}>
                   <Text style={[styles.childName, { color: colors.foreground }]}>{child.name}</Text>
@@ -184,6 +223,38 @@ export default function CycleScreen() {
           <Text style={[styles.closeBtnText, { color: colors.destructive }]}>Fechar ciclo e iniciar novo</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Close Cycle Modal */}
+      <Modal visible={showCloseModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowCloseModal(false)}>
+        <View style={[styles.modal, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setShowCloseModal(false)}>
+              <Text style={[styles.cancelTxt, { color: colors.mutedForeground }]}>Cancelar</Text>
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Novo ciclo</Text>
+            <TouchableOpacity onPress={handleConfirmClose}>
+              <Text style={[styles.saveTxt, { color: colors.primary }]}>Confirmar</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalEmoji}>🔄</Text>
+            <Text style={[styles.modalDesc, { color: colors.mutedForeground }]}>
+              O ciclo atual será encerrado e um novo começa hoje. Escolha a data de encerramento do próximo ciclo.
+            </Text>
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Data de encerramento</Text>
+            <TextInput
+              style={[styles.textInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+              placeholder="DD/MM/AAAA"
+              placeholderTextColor={colors.mutedForeground}
+              value={newEndDateInput}
+              onChangeText={v => setNewEndDateInput(fmtDateInput(v))}
+              keyboardType="number-pad"
+              maxLength={10}
+              autoFocus
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -193,14 +264,14 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   headerTitle: { fontSize: 22, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   content: { padding: 16, gap: 12 },
-  card: { borderRadius: 20, padding: 20, gap: 8 },
-  cardTitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_500Medium' },
+  card: { borderRadius: 20, padding: 20, gap: 10 },
+  cardLabel: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_500Medium' },
   cardDates: { fontSize: 16, fontWeight: '600' as const, color: '#ffffff', fontFamily: 'Inter_600SemiBold' },
-  cycleProgress: { gap: 8 },
   progressBarBg: { height: 8, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 4, overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: '#ffffff', borderRadius: 4 },
-  progressLabel: { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontFamily: 'Inter_500Medium' },
-  durationLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular' },
+  progressInfo: { flexDirection: 'row', justifyContent: 'space-between' },
+  progressDay: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_500Medium' },
+  progressLeft: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_600SemiBold' },
   sectionTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', marginTop: 4 },
   emptyCard: { borderRadius: 14, padding: 20, borderWidth: 1, alignItems: 'center' },
   emptyText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
@@ -209,6 +280,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4,
   },
   childAvatar: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  childEmoji: { fontSize: 24 },
   childInfo: { flex: 1 },
   childName: { fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   childNick: { fontSize: 12, fontFamily: 'Inter_400Regular' },
@@ -223,7 +295,6 @@ const styles = StyleSheet.create({
   addChildCard: { borderRadius: 14, padding: 16, borderWidth: 1, gap: 10 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: 'Inter_400Regular' },
-  input: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 12, borderWidth: 1, gap: 8 },
   confirmBtn: { borderRadius: 12, padding: 12, alignItems: 'center' },
   confirmBtnText: { color: '#ffffff', fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   cancelText: { textAlign: 'center', fontSize: 14, fontFamily: 'Inter_400Regular' },
@@ -239,4 +310,15 @@ const styles = StyleSheet.create({
     gap: 10, padding: 16, borderRadius: 16, borderWidth: 1.5, marginTop: 8,
   },
   closeBtnText: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  modal: { flex: 1 },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 16, paddingTop: 20, borderBottomWidth: 1,
+  },
+  cancelTxt: { fontSize: 16, fontFamily: 'Inter_500Medium' },
+  modalTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  saveTxt: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  modalContent: { padding: 24, gap: 12, alignItems: 'stretch' },
+  modalEmoji: { fontSize: 48, textAlign: 'center' },
+  modalDesc: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 20 },
 });

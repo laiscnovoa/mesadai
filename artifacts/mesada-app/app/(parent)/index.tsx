@@ -50,8 +50,10 @@ export default function ParentDashboard() {
           </View>
           <View style={[styles.statDivider]} />
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{family?.cycleLength ?? '-'}</Text>
-            <Text style={styles.statLabel}>Dias totais</Text>
+            <Text style={styles.statValue}>
+              {cycleEnd ? Math.max(0, Math.ceil((cycleEnd.getTime() - new Date().setHours(0,0,0,0)) / (1000 * 60 * 60 * 24))) : '-'}
+            </Text>
+            <Text style={styles.statLabel}>Dias restantes</Text>
           </View>
           <View style={[styles.statDivider]} />
           <View style={styles.statCard}>

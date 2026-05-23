@@ -33,6 +33,7 @@ interface AppContextType {
   currentChildId: string | null;
 
   setupParent: (data: SetupData) => Promise<void>;
+  updateCycleEndDate: (newEndDate: string) => void;
   loginAsParent: () => void;
   loginAsChild: (pin: string, nickname: string) => boolean;
   logout: () => void;
@@ -51,7 +52,7 @@ interface AppContextType {
   deleteGoal: (goalId: string) => void;
 
   addChild: (name: string, nickname: string) => void;
-  closeCycle: () => void;
+  closeCycle: (newEndDate: string) => void;
 
   getCurrentChild: () => Child | null;
   getTodaysMissions: (childId?: string) => Mission[];
@@ -108,7 +109,7 @@ export function AppProvider({ children: reactChildren }: { children: React.React
       name: data.familyName.trim(),
       parentName: data.parentName.trim(),
       pin: Math.floor(100000 + Math.random() * 900000).toString(),
-      cycleLength: data.cycleLength,
+      cycleEndDate: data.cycleEndDate,
       cycleStartDate: getTodayKey(),
     };
     const child: Child = {
@@ -226,9 +227,14 @@ export function AppProvider({ children: reactChildren }: { children: React.React
     persist({ ...appData, children: [...appData.children, child] });
   };
 
-  const closeCycle = () => {
+  const closeCycle = (newEndDate: string) => {
     if (!appData.family) return;
-    persist({ ...appData, family: { ...appData.family, cycleStartDate: getTodayKey() } });
+    persist({ ...appData, family: { ...appData.family, cycleStartDate: getTodayKey(), cycleEndDate: newEndDate } });
+  };
+
+  const updateCycleEndDate = (newEndDate: string) => {
+    if (!appData.family) return;
+    persist({ ...appData, family: { ...appData.family, cycleEndDate: newEndDate } });
   };
 
   const getCurrentChild = (): Child | null =>
@@ -289,9 +295,7 @@ export function AppProvider({ children: reactChildren }: { children: React.React
 
   const getCycleEndDate = (): Date | null => {
     if (!appData.family) return null;
-    const d = new Date(appData.family.cycleStartDate + 'T00:00:00');
-    d.setDate(d.getDate() + appData.family.cycleLength);
-    return d;
+    return new Date(appData.family.cycleEndDate + 'T00:00:00');
   };
 
   const getCycleDay = (): number => {
@@ -311,7 +315,7 @@ export function AppProvider({ children: reactChildren }: { children: React.React
       goals: appData.goals,
       currentRole: session.currentRole,
       currentChildId: session.currentChildId,
-      setupParent, loginAsParent, loginAsChild, logout,
+      setupParent, loginAsParent, loginAsChild, logout, updateCycleEndDate,
       addTask, updateTask, toggleTask, deleteTask,
       submitTask, reviewSubmission, submitAppeal, reviewAppeal,
       addGoal, deleteGoal, addChild, closeCycle,

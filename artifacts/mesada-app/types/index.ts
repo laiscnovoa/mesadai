@@ -20,7 +20,6 @@ export const addDays = (dateStr: string, days: number): string => {
   return date.toISOString().split('T')[0];
 };
 
-export type CycleLength = 7 | 14 | 30 | 60;
 export type TaskFrequency = 'daily' | 'weekly' | 'once';
 export type SubmissionStatus =
   | 'pending'
@@ -36,7 +35,7 @@ export interface Family {
   name: string;
   parentName: string;
   pin: string;
-  cycleLength: CycleLength;
+  cycleEndDate: string;
   cycleStartDate: string;
 }
 
@@ -96,7 +95,7 @@ export interface SubmissionWithTask {
 export interface SetupData {
   familyName: string;
   parentName: string;
-  cycleLength: CycleLength;
+  cycleEndDate: string;
   childName: string;
   childNickname: string;
 }

@@ -1,21 +1,35 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, Platform, Modal,
+  ScrollView, ActivityIndicator, Alert, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { CycleLength } from '@/types';
 
-const CYCLE_OPTIONS: { label: string; value: CycleLength }[] = [
-  { label: '7 dias', value: 7 },
-  { label: '14 dias', value: 14 },
-  { label: '30 dias', value: 30 },
-  { label: '60 dias', value: 60 },
-];
+function parseDateBR(value: string): string | null {
+  const clean = value.replace(/\D/g, '');
+  if (clean.length !== 8) return null;
+  const day = parseInt(clean.slice(0, 2), 10);
+  const month = parseInt(clean.slice(2, 4), 10);
+  const year = parseInt(clean.slice(4, 8), 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 2024) return null;
+  const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const d = new Date(iso + 'T00:00:00');
+  if (d.getDate() !== day || d.getMonth() + 1 !== month) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (d <= today) return null;
+  return iso;
+}
+
+function formatDateInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
 
 export default function ParentLoginScreen() {
   const { family, loginAsParent, setupParent } = useApp();
@@ -25,7 +39,7 @@ export default function ParentLoginScreen() {
   const [step, setStep] = useState(1);
   const [familyName, setFamilyName] = useState('');
   const [parentName, setParentName] = useState('');
-  const [cycleLength, setCycleLength] = useState<CycleLength>(7);
+  const [cycleDateInput, setCycleDateInput] = useState('');
   const [childName, setChildName] = useState('');
   const [childNickname, setChildNickname] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,6 +54,13 @@ export default function ParentLoginScreen() {
       Alert.alert('Atenção', 'Preencha o nome da família e seu nome.');
       return;
     }
+    if (step === 2) {
+      const iso = parseDateBR(cycleDateInput.replace(/\D/g, '').slice(0, 8));
+      if (!iso) {
+        Alert.alert('Data inválida', 'Informe uma data futura válida no formato DD/MM/AAAA.');
+        return;
+      }
+    }
     setStep(s => s + 1);
   };
 
@@ -52,9 +73,14 @@ export default function ParentLoginScreen() {
       Alert.alert('Atenção', 'O apelido deve ter pelo menos 3 caracteres.');
       return;
     }
+    const cycleEndDate = parseDateBR(cycleDateInput.replace(/\D/g, '').slice(0, 8));
+    if (!cycleEndDate) {
+      Alert.alert('Data inválida', 'Volte e informe uma data futura válida.');
+      return;
+    }
     setLoading(true);
     try {
-      await setupParent({ familyName, parentName, cycleLength, childName, childNickname });
+      await setupParent({ familyName, parentName, cycleEndDate, childName, childNickname });
       router.replace('/(parent)');
     } finally {
       setLoading(false);
@@ -64,7 +90,6 @@ export default function ParentLoginScreen() {
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const botPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24;
 
-  // Existing family — just log in
   if (family) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -77,7 +102,7 @@ export default function ParentLoginScreen() {
         <View style={styles.centerContent}>
           <View style={[styles.familyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.familyIcon, { backgroundColor: colors.secondary }]}>
-              <Ionicons name="home" size={32} color={colors.primary} />
+              <Text style={styles.familyEmoji}>🐷</Text>
             </View>
             <Text style={[styles.familyName, { color: colors.foreground }]}>{family.name}</Text>
             <Text style={[styles.familySub, { color: colors.mutedForeground }]}>Olá, {family.parentName}!</Text>
@@ -106,7 +131,7 @@ export default function ParentLoginScreen() {
         <TouchableOpacity onPress={() => step > 1 ? setStep(s => s - 1) : router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Criar Família</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Criar Caixinha</Text>
         <Text style={[styles.stepIndicator, { color: colors.mutedForeground }]}>{step}/3</Text>
       </View>
 
@@ -119,9 +144,9 @@ export default function ParentLoginScreen() {
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: botPad }]} keyboardShouldPersistTaps="handled">
         {step === 1 && (
           <View style={styles.stepContent}>
-            <Ionicons name="people" size={48} color={colors.primary} style={styles.stepIcon} />
+            <Text style={styles.stepEmoji}>🏠</Text>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>Quem é você?</Text>
-            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>Vamos configurar a família.</Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>Vamos criar a Caixinha da sua família.</Text>
             <Text style={[styles.label, { color: colors.foreground }]}>Nome da família</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
@@ -147,23 +172,27 @@ export default function ParentLoginScreen() {
 
         {step === 2 && (
           <View style={styles.stepContent}>
-            <Ionicons name="calendar" size={48} color={colors.primary} style={styles.stepIcon} />
-            <Text style={[styles.stepTitle, { color: colors.foreground }]}>Duração do ciclo</Text>
-            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>Por quanto tempo as tarefas valem?</Text>
-            {CYCLE_OPTIONS.map(opt => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[styles.cycleOption, {
-                  backgroundColor: cycleLength === opt.value ? colors.primary : colors.card,
-                  borderColor: cycleLength === opt.value ? colors.primary : colors.border,
-                }]}
-                onPress={() => setCycleLength(opt.value)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.cycleLabel, { color: cycleLength === opt.value ? '#ffffff' : colors.foreground }]}>{opt.label}</Text>
-                {cycleLength === opt.value && <Ionicons name="checkmark-circle" size={22} color="#ffffff" />}
-              </TouchableOpacity>
-            ))}
+            <Text style={styles.stepEmoji}>📅</Text>
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>Quando encerra?</Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              Escolha a data de encerramento deste ciclo de tarefas.
+            </Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Data de encerramento</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
+              placeholder="DD/MM/AAAA"
+              placeholderTextColor={colors.mutedForeground}
+              value={cycleDateInput}
+              onChangeText={v => setCycleDateInput(formatDateInput(v))}
+              keyboardType="number-pad"
+              maxLength={10}
+            />
+            <View style={[styles.dateHint, { backgroundColor: colors.secondary }]}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+              <Text style={[styles.dateHintText, { color: colors.mutedForeground }]}>
+                Dica: semana (~7d), quinzena (~15d), mês (~30d) — você decide!
+              </Text>
+            </View>
             <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={nextStep} activeOpacity={0.85}>
               <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Próximo</Text>
               <Ionicons name="arrow-forward" size={20} color={colors.primaryForeground} />
@@ -173,7 +202,7 @@ export default function ParentLoginScreen() {
 
         {step === 3 && (
           <View style={styles.stepContent}>
-            <Ionicons name="person-add" size={48} color={colors.primary} style={styles.stepIcon} />
+            <Text style={styles.stepEmoji}>👦</Text>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>Adicionar filho(a)</Text>
             <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>O apelido será usado para fazer login.</Text>
             <Text style={[styles.label, { color: colors.foreground }]}>Nome completo</Text>
@@ -202,7 +231,7 @@ export default function ParentLoginScreen() {
             >
               {loading ? <ActivityIndicator color="#ffffff" size="small" /> : (
                 <>
-                  <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Criar família</Text>
+                  <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Criar Caixinha</Text>
                   <Ionicons name="checkmark" size={20} color={colors.primaryForeground} />
                 </>
               )}
@@ -224,24 +253,22 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   content: { padding: 24 },
   stepContent: { gap: 12 },
-  stepIcon: { alignSelf: 'center', marginBottom: 8 },
+  stepEmoji: { fontSize: 48, textAlign: 'center', marginBottom: 4 },
   stepTitle: { fontSize: 24, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', textAlign: 'center' },
   stepSub: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', marginBottom: 8 },
   label: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', marginTop: 4 },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: 'Inter_400Regular' },
+  dateHint: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 12 },
+  dateHintText: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular' },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 10, borderRadius: 16, paddingVertical: 16, marginTop: 8,
   },
   primaryBtnText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  cycleOption: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, borderRadius: 14, borderWidth: 1.5,
-  },
-  cycleLabel: { fontSize: 16, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   centerContent: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, gap: 16 },
   familyCard: { borderRadius: 20, padding: 24, alignItems: 'center', gap: 12, borderWidth: 1 },
   familyIcon: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  familyEmoji: { fontSize: 36 },
   familyName: { fontSize: 24, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   familySub: { fontSize: 16, fontFamily: 'Inter_400Regular' },
   pinBox: { width: '100%', borderRadius: 14, padding: 16, alignItems: 'center', gap: 4 },
