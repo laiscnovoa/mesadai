@@ -80,7 +80,7 @@ function ClassicChildTabs() {
           tabPress: (e) => {
             e.preventDefault();
             logout();
-            router.replace('/');
+            router.replace('/welcome');
           },
         }}
         options={{

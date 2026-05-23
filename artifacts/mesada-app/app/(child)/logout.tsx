@@ -9,7 +9,7 @@ export default function ChildLogoutScreen() {
 
   useEffect(() => {
     logout();
-    router.replace('/');
+    router.replace('/welcome');
   }, []);
 
   return <View />;

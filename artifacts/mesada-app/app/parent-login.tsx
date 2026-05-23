@@ -129,7 +129,7 @@ export default function ParentLoginScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad }]}>
-          <TouchableOpacity onPress={() => router.replace('/')} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.replace('/welcome')} style={styles.backBtn}>
             <Ionicons name="home" size={22} color={colors.foreground} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Entrar como Responsável</Text>
@@ -220,7 +220,7 @@ export default function ParentLoginScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad }]}>
-        <TouchableOpacity onPress={() => step > 1 ? setStep(s => s - 1) : router.replace('/')} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => step > 1 ? setStep(s => s - 1) : router.replace('/welcome')} style={styles.backBtn}>
           <Ionicons name={step > 1 ? 'arrow-back' : 'home'} size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Configurar MesadAI</Text>
