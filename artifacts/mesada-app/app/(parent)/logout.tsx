@@ -4,18 +4,13 @@ import { useRouter } from 'expo-router';
 import { useApp } from '@/context/AppContext';
 
 export default function ParentLogoutScreen() {
-  const { logout, currentRole } = useApp();
+  const { logout } = useApp();
   const router = useRouter();
 
   useEffect(() => {
     logout();
+    router.replace('/');
   }, []);
-
-  useEffect(() => {
-    if (currentRole !== 'parent') {
-      router.replace('/');
-    }
-  }, [currentRole]);
 
   return <View />;
 }

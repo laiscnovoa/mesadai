@@ -23,15 +23,15 @@ function getCofriState(completed: number, total: number): CofriState {
 export default function ChildMissionsScreen() {
   const {
     getCurrentChild, getTodaysMissions, getChildStreak, getChildXP,
-    getChildLevel, getChildBalance, currentRole, currentChildId, logout,
+    getChildLevel, getChildBalance, currentRole, currentChildId, logout, isLoading,
   } = useApp();
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    if (currentRole !== 'child') router.replace('/');
-  }, [currentRole]);
+    if (!isLoading && currentRole !== 'child') router.replace('/');
+  }, [currentRole, isLoading]);
 
   const child = getCurrentChild();
   const missions = getTodaysMissions();
@@ -68,7 +68,7 @@ export default function ChildMissionsScreen() {
                 </View>
                 <View style={styles.headerRight}>
                   <StreakBadge streak={streak} />
-                  <TouchableOpacity onPress={() => logout()} style={styles.logoutBtn} testID="child-home-btn">
+                  <TouchableOpacity onPress={() => { logout(); router.replace('/'); }} style={styles.logoutBtn} testID="child-home-btn">
                     <Ionicons name="home" size={16} color="#ffffff" />
                     <Text style={styles.logoutText}>Início</Text>
                   </TouchableOpacity>

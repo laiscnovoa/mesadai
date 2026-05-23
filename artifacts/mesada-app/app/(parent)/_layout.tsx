@@ -92,6 +92,7 @@ function ClassicParentTabs() {
           tabPress: (e) => {
             e.preventDefault();
             logout();
+            router.replace('/');
           },
         }}
         options={{

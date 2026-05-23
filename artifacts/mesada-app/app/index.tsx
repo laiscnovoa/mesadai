@@ -17,7 +17,7 @@ export default function IndexScreen() {
     if (isLoading) return;
     if (currentRole === 'parent') router.replace('/(parent)');
     else if (currentRole === 'child') router.replace('/(child)');
-  }, [currentRole, isLoading]);
+  }, [isLoading]);
 
   if (isLoading || currentRole) {
     return (
@@ -31,7 +31,7 @@ export default function IndexScreen() {
     <LinearGradient colors={['#00C472', '#00855B']} style={styles.container}>
       <View style={[styles.top, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 20) }]}>
         <View style={styles.logoCircle}>
-          <Text style={styles.logoEmoji}>🐷</Text>
+          <Text style={styles.logoEmoji}>🪙</Text>
         </View>
         <Text style={styles.appName}>Caixinha</Text>
         <Text style={styles.tagline}>Sua mesada, seu futuro.</Text>

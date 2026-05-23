@@ -14,15 +14,15 @@ import { formatDate, formatCurrency } from '@/types';
 export default function ParentDashboard() {
   const {
     family, children, getPendingSubmissions, getChildBalance,
-    getCycleDay, getCycleEndDate, logout, currentRole,
+    getCycleDay, getCycleEndDate, logout, currentRole, isLoading,
   } = useApp();
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    if (currentRole !== 'parent') router.replace('/');
-  }, [currentRole]);
+    if (!isLoading && currentRole !== 'parent') router.replace('/');
+  }, [currentRole, isLoading]);
 
   const pending = getPendingSubmissions();
   const cycleDay = getCycleDay();
@@ -38,7 +38,7 @@ export default function ParentDashboard() {
             <Text style={styles.headerGreeting}>Olá, {family?.parentName ?? 'Responsável'}</Text>
             <Text style={styles.headerFamily}>{family?.name}</Text>
           </View>
-          <TouchableOpacity onPress={() => logout()} style={styles.logoutBtn} testID="parent-home-btn">
+          <TouchableOpacity onPress={() => { logout(); router.replace('/'); }} style={styles.logoutBtn} testID="parent-home-btn">
             <Ionicons name="home" size={18} color="#ffffff" />
             <Text style={styles.logoutText}>Início</Text>
           </TouchableOpacity>
