@@ -76,7 +76,7 @@ export default function ChildMissionsScreen() {
 
               {/* Cofri mascot */}
               <View style={styles.cofriContainer}>
-                <Cofri state={cofriState} size={88} />
+                <Cofri state={cofriState} streak={streak} size={88} />
               </View>
 
               {/* XP + Balance row */}
