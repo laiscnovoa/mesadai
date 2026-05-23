@@ -27,6 +27,9 @@ export default function ProgressScreen() {
   const insets = useSafeAreaInsets();
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showBetModal, setShowBetModal] = useState(false);
+  const [showAppealModal, setShowAppealModal] = useState(false);
+  const [appealTargetId, setAppealTargetId] = useState('');
+  const [appealText, setAppealText] = useState('');
   const [goalTitle, setGoalTitle] = useState('');
   const [goalAmount, setGoalAmount] = useState('');
 
@@ -51,6 +54,15 @@ export default function ProgressScreen() {
       !s.appealText &&
       (Date.now() - new Date(s.reviewedAt ?? s.submittedAt).getTime()) < 48 * 3600 * 1000
   );
+
+  const handleSubmitAppeal = () => {
+    if (!appealText.trim()) { Alert.alert('Atenção', 'Explique o motivo do recurso.'); return; }
+    submitAppeal(appealTargetId, appealText.trim());
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowAppealModal(false);
+    setAppealText('');
+    setAppealTargetId('');
+  };
 
   const handleAddGoal = () => {
     if (!goalTitle.trim()) { Alert.alert('Atenção', 'Digite um nome para a meta.'); return; }
@@ -175,7 +187,7 @@ export default function ProgressScreen() {
                 const isMe = c.id === childId;
                 return (
                   <View key={c.id} style={[styles.siblingStreakRow, idx > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
-                    <Text style={styles.streakChildEmoji}>🐷</Text>
+                    <Text style={styles.streakChildEmoji}>🪙</Text>
                     <Text style={[styles.streakChildName, { color: colors.foreground }]}>
                       {c.name}{isMe ? ' (eu)' : ''}
                     </Text>
@@ -241,19 +253,7 @@ export default function ProgressScreen() {
                   </View>
                   <TouchableOpacity
                     style={[styles.appealBtn, { backgroundColor: colors.xp }]}
-                    onPress={() => {
-                      Alert.prompt(
-                        'Recorrer',
-                        'Explique por que merece uma nova avaliação:',
-                        (text) => {
-                          if (text?.trim()) {
-                            submitAppeal(sub.id, text.trim());
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                          }
-                        },
-                        'plain-text'
-                      );
-                    }}
+                    onPress={() => { setAppealTargetId(sub.id); setAppealText(''); setShowAppealModal(true); }}
                   >
                     <Text style={styles.appealBtnText}>Recorrer</Text>
                   </TouchableOpacity>
@@ -298,6 +298,35 @@ export default function ProgressScreen() {
 
       {/* Bet Modal */}
       <BetModal visible={showBetModal} onClose={() => setShowBetModal(false)} childId={childId} />
+
+      {/* Appeal Modal */}
+      <Modal visible={showAppealModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowAppealModal(false)}>
+        <View style={[styles.modal, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setShowAppealModal(false)}>
+              <Text style={[styles.cancelText, { color: colors.destructive }]}>Cancelar</Text>
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Recorrer</Text>
+            <TouchableOpacity onPress={handleSubmitAppeal}>
+              <Text style={[styles.saveText, { color: colors.xp }]}>Enviar</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.modalContent}>
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Por que você merece uma nova avaliação?</Text>
+            <TextInput
+              style={[styles.textArea, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+              placeholder="Explique o que fez e por que deve ser aprovado..."
+              placeholderTextColor={colors.mutedForeground}
+              value={appealText}
+              onChangeText={setAppealText}
+              multiline
+              numberOfLines={5}
+              autoFocus
+              textAlignVertical="top"
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Goal Modal */}
       <Modal visible={showGoalModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowGoalModal(false)}>
@@ -401,6 +430,10 @@ const styles = StyleSheet.create({
   modalContent: { padding: 20, gap: 8 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', marginTop: 8 },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: 'Inter_400Regular' },
+  textArea: {
+    borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 15, fontFamily: 'Inter_400Regular', minHeight: 130,
+  },
   familyStreaksCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden', marginBottom: 4 },
   siblingStreakRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10 },
   streakChildEmoji: { fontSize: 22 },
