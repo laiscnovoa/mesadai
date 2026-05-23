@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Family, Child, Task, TaskSubmission, SavingsGoal,
   Mission, SubmissionWithTask, UserRole, SubmissionStatus,
-  generateId, getTodayKey, SetupData,
+  TaskAssignmentType, generateId, getTodayKey, SetupData,
 } from '@/types';
 
 const STORAGE_KEY = 'mesada_data_v1';
@@ -39,6 +39,7 @@ interface AppContextType {
   logout: () => void;
 
   addTask: (data: Omit<Task, 'id' | 'familyId' | 'createdAt' | 'active'>) => void;
+  isTaskClaimedForCycle: (taskId: string) => boolean;
   updateTask: (task: Task) => void;
   toggleTask: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
@@ -139,7 +140,15 @@ export function AppProvider({ children: reactChildren }: { children: React.React
 
   const addTask = (data: Omit<Task, 'id' | 'familyId' | 'createdAt' | 'active'>) => {
     if (!appData.family) return;
-    const task: Task = { ...data, id: generateId(), familyId: appData.family.id, active: true, createdAt: new Date().toISOString() };
+    const task: Task = {
+      ...data,
+      assignmentType: data.assignmentType ?? 'all',
+      assignedChildIds: data.assignedChildIds ?? [],
+      id: generateId(),
+      familyId: appData.family.id,
+      active: true,
+      createdAt: new Date().toISOString(),
+    };
     persist({ ...appData, tasks: [...appData.tasks, task] });
   };
 
@@ -240,11 +249,39 @@ export function AppProvider({ children: reactChildren }: { children: React.React
   const getCurrentChild = (): Child | null =>
     appData.children.find(c => c.id === session.currentChildId) ?? null;
 
+  const isTaskClaimedForCycle = (taskId: string): boolean => {
+    const task = appData.tasks.find(t => t.id === taskId);
+    if (!task || task.assignmentType !== 'first') return false;
+    const cycleStart = appData.family ? new Date(appData.family.cycleStartDate + 'T00:00:00') : new Date(0);
+    return appData.submissions.some(
+      s => s.taskId === taskId &&
+        (s.status === 'approved' || s.status === 'partial') &&
+        new Date(s.submittedAt) >= cycleStart
+    );
+  };
+
   const getTodaysMissions = (childId?: string): Mission[] => {
     const cId = childId ?? session.currentChildId;
     if (!cId) return [];
     const today = getTodayKey();
-    const activeTasks = appData.tasks.filter(t => t.active);
+    const cycleStart = appData.family ? new Date(appData.family.cycleStartDate + 'T00:00:00') : new Date(0);
+    const activeTasks = appData.tasks.filter(t => {
+      if (!t.active) return false;
+      const aType = t.assignmentType ?? 'all';
+      if (aType === 'individual') {
+        return (t.assignedChildIds ?? []).includes(cId);
+      }
+      if (aType === 'first') {
+        const alreadyClaimed = appData.submissions.some(
+          s => s.taskId === t.id &&
+            s.childId !== cId &&
+            (s.status === 'approved' || s.status === 'partial') &&
+            new Date(s.submittedAt) >= cycleStart
+        );
+        return !alreadyClaimed;
+      }
+      return true;
+    });
     return activeTasks.map(task => ({
       task,
       submission: appData.submissions.find(s => s.taskId === task.id && s.childId === cId && s.submittedForDate === today) ?? null,
@@ -316,7 +353,7 @@ export function AppProvider({ children: reactChildren }: { children: React.React
       currentRole: session.currentRole,
       currentChildId: session.currentChildId,
       setupParent, loginAsParent, loginAsChild, logout, updateCycleEndDate,
-      addTask, updateTask, toggleTask, deleteTask,
+      addTask, updateTask, toggleTask, deleteTask, isTaskClaimedForCycle,
       submitTask, reviewSubmission, submitAppeal, reviewAppeal,
       addGoal, deleteGoal, addChild, closeCycle,
       getCurrentChild, getTodaysMissions, getChildBalance, getChildStreak,

@@ -21,6 +21,7 @@ export const addDays = (dateStr: string, days: number): string => {
 };
 
 export type TaskFrequency = 'daily' | 'weekly' | 'once';
+export type TaskAssignmentType = 'all' | 'individual' | 'first';
 export type SubmissionStatus =
   | 'pending'
   | 'approved'
@@ -53,6 +54,8 @@ export interface Task {
   description: string;
   rewardCents: number;
   frequency: TaskFrequency;
+  assignmentType: TaskAssignmentType;
+  assignedChildIds: string[];
   active: boolean;
   createdAt: string;
 }

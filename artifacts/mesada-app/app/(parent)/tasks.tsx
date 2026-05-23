@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { Task, TaskFrequency, formatCurrency } from '@/types';
+import { Task, TaskFrequency, TaskAssignmentType, formatCurrency } from '@/types';
 
 const FREQ_OPTIONS: { label: string; value: TaskFrequency; icon: keyof typeof Ionicons.glyphMap }[] = [
   { label: 'Diária', value: 'daily', icon: 'sunny' },
@@ -16,36 +16,78 @@ const FREQ_OPTIONS: { label: string; value: TaskFrequency; icon: keyof typeof Io
   { label: 'Uma vez', value: 'once', icon: 'checkmark-done-circle' },
 ];
 
+const ASSIGN_OPTIONS: { label: string; value: TaskAssignmentType; icon: keyof typeof Ionicons.glyphMap; description: string }[] = [
+  { label: 'Todos', value: 'all', icon: 'people', description: 'Todos os filhos precisam completar' },
+  { label: 'Individual', value: 'individual', icon: 'person', description: 'Só filhos selecionados' },
+  { label: 'Livre', value: 'first', icon: 'flash', description: 'Primeiro a completar ganha' },
+];
+
 const REWARD_PRESETS = [500, 1000, 2000, 5000];
 
+const ASSIGNMENT_COLORS: Record<TaskAssignmentType, string> = {
+  all: '#4CAF50',
+  individual: '#2196F3',
+  first: '#FF9800',
+};
+
+const ASSIGNMENT_LABELS: Record<TaskAssignmentType, string> = {
+  all: 'Todos',
+  individual: 'Individual',
+  first: 'Livre',
+};
+
+const ASSIGNMENT_ICONS: Record<TaskAssignmentType, keyof typeof Ionicons.glyphMap> = {
+  all: 'people',
+  individual: 'person',
+  first: 'flash',
+};
+
 export default function TasksScreen() {
-  const { tasks, addTask, toggleTask, deleteTask } = useApp();
+  const { tasks, children, addTask, toggleTask, deleteTask, isTaskClaimedForCycle } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [showModal, setShowModal] = useState(false);
-  const [editTask, setEditTask] = useState<Task | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [rewardStr, setRewardStr] = useState('');
   const [frequency, setFrequency] = useState<TaskFrequency>('daily');
+  const [assignmentType, setAssignmentType] = useState<TaskAssignmentType>('all');
+  const [selectedChildIds, setSelectedChildIds] = useState<string[]>([]);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
 
   const openCreate = () => {
-    setEditTask(null);
     setTitle('');
     setDescription('');
     setRewardStr('');
     setFrequency('daily');
+    setAssignmentType('all');
+    setSelectedChildIds([]);
     setShowModal(true);
+  };
+
+  const toggleChild = (childId: string) => {
+    setSelectedChildIds(prev =>
+      prev.includes(childId) ? prev.filter(id => id !== childId) : [...prev, childId]
+    );
   };
 
   const handleSave = () => {
     if (!title.trim()) { Alert.alert('Atenção', 'Digite o nome da tarefa.'); return; }
     const reward = Math.round(parseFloat(rewardStr.replace(',', '.')) * 100);
     if (isNaN(reward) || reward <= 0) { Alert.alert('Atenção', 'Digite um valor válido.'); return; }
+    if (assignmentType === 'individual' && selectedChildIds.length === 0) {
+      Alert.alert('Atenção', 'Selecione pelo menos um filho para a tarefa individual.'); return;
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    addTask({ title: title.trim(), description: description.trim(), rewardCents: reward, frequency });
+    addTask({
+      title: title.trim(),
+      description: description.trim(),
+      rewardCents: reward,
+      frequency,
+      assignmentType,
+      assignedChildIds: assignmentType === 'individual' ? selectedChildIds : [],
+    });
     setShowModal(false);
   };
 
@@ -56,36 +98,58 @@ export default function TasksScreen() {
     ]);
   };
 
+  const getAssignmentLabel = (task: Task): string => {
+    const aType = task.assignmentType ?? 'all';
+    if (aType === 'individual') {
+      const names = (task.assignedChildIds ?? [])
+        .map(id => children.find(c => c.id === id)?.name ?? '')
+        .filter(Boolean);
+      if (names.length === 0) return 'Individual';
+      return names.length <= 2 ? names.join(', ') : `${names[0]} +${names.length - 1}`;
+    }
+    return ASSIGNMENT_LABELS[aType];
+  };
+
   const activeTasks = tasks.filter(t => t.active);
   const inactiveTasks = tasks.filter(t => !t.active);
 
-  const renderTask = ({ item }: { item: Task }) => (
-    <View style={[styles.taskCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: item.active ? 1 : 0.6 }]}>
-      <View style={[styles.taskIcon, { backgroundColor: item.active ? colors.secondary : colors.muted }]}>
-        <Ionicons name={FREQ_OPTIONS.find(f => f.value === item.frequency)?.icon ?? 'checkmark'} size={20} color={item.active ? colors.primary : colors.mutedForeground} />
-      </View>
-      <View style={styles.taskInfo}>
-        <Text style={[styles.taskTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
-        <View style={styles.taskMeta}>
-          <Text style={[styles.taskFreq, { color: colors.mutedForeground }]}>
-            {FREQ_OPTIONS.find(f => f.value === item.frequency)?.label}
-          </Text>
-          <View style={[styles.rewardBadge, { backgroundColor: '#FFF8E1' }]}>
-            <Ionicons name="cash" size={12} color="#F6C90E" />
-            <Text style={styles.rewardText}>{formatCurrency(item.rewardCents)}</Text>
+  const renderTask = ({ item }: { item: Task }) => {
+    const aType = item.assignmentType ?? 'all';
+    const claimed = aType === 'first' && isTaskClaimedForCycle(item.id);
+    const badgeColor = ASSIGNMENT_COLORS[aType];
+    return (
+      <View style={[styles.taskCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: item.active ? 1 : 0.6 }]}>
+        <View style={[styles.taskIcon, { backgroundColor: item.active ? colors.secondary : colors.muted }]}>
+          <Ionicons name={FREQ_OPTIONS.find(f => f.value === item.frequency)?.icon ?? 'checkmark'} size={20} color={item.active ? colors.primary : colors.mutedForeground} />
+        </View>
+        <View style={styles.taskInfo}>
+          <Text style={[styles.taskTitle, { color: colors.foreground }]} numberOfLines={1}>{item.title}</Text>
+          <View style={styles.taskMeta}>
+            <Text style={[styles.taskFreq, { color: colors.mutedForeground }]}>
+              {FREQ_OPTIONS.find(f => f.value === item.frequency)?.label}
+            </Text>
+            <View style={[styles.assignBadge, { backgroundColor: badgeColor + '20' }]}>
+              <Ionicons name={ASSIGNMENT_ICONS[aType]} size={11} color={badgeColor} />
+              <Text style={[styles.assignBadgeText, { color: badgeColor }]}>{getAssignmentLabel(item)}</Text>
+              {claimed && <Text style={[styles.assignBadgeText, { color: badgeColor }]}>· Conquistada</Text>}
+            </View>
+            <View style={[styles.rewardBadge, { backgroundColor: '#FFF8E1' }]}>
+              <Ionicons name="cash" size={12} color="#F6C90E" />
+              <Text style={styles.rewardText}>{formatCurrency(item.rewardCents)}</Text>
+            </View>
           </View>
         </View>
+        <View style={styles.taskActions}>
+          <TouchableOpacity onPress={() => toggleTask(item.id)} style={styles.actionBtn}>
+            <Ionicons name={item.active ? 'pause-circle' : 'play-circle'} size={24} color={item.active ? colors.warning : colors.success} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleDelete(item)} style={styles.actionBtn}>
+            <Ionicons name="trash-outline" size={22} color={colors.destructive} />
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.taskActions}>
-        <TouchableOpacity onPress={() => toggleTask(item.id)} style={styles.actionBtn}>
-          <Ionicons name={item.active ? 'pause-circle' : 'play-circle'} size={24} color={item.active ? colors.warning : colors.success} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => handleDelete(item)} style={styles.actionBtn}>
-          <Ionicons name="trash-outline" size={22} color={colors.destructive} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -197,6 +261,81 @@ export default function TasksScreen() {
                 {frequency === opt.value && <Ionicons name="checkmark-circle" size={20} color="#ffffff" style={styles.freqCheck} />}
               </TouchableOpacity>
             ))}
+
+            {/* Assignment Type */}
+            <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Quem deve fazer?</Text>
+            {ASSIGN_OPTIONS.map(opt => {
+              const selected = assignmentType === opt.value;
+              const aColor = ASSIGNMENT_COLORS[opt.value];
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.assignOption, {
+                    backgroundColor: selected ? aColor + '15' : colors.card,
+                    borderColor: selected ? aColor : colors.border,
+                  }]}
+                  onPress={() => setAssignmentType(opt.value)}
+                >
+                  <View style={[styles.assignOptionIcon, { backgroundColor: selected ? aColor : colors.muted }]}>
+                    <Ionicons name={opt.icon} size={18} color={selected ? '#ffffff' : colors.mutedForeground} />
+                  </View>
+                  <View style={styles.assignOptionText}>
+                    <Text style={[styles.assignOptionLabel, { color: selected ? aColor : colors.foreground }]}>{opt.label}</Text>
+                    <Text style={[styles.assignOptionDesc, { color: colors.mutedForeground }]}>{opt.description}</Text>
+                  </View>
+                  {selected && <Ionicons name="checkmark-circle" size={22} color={aColor} />}
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* Child selector — only for 'individual' */}
+            {assignmentType === 'individual' && children.length > 0 && (
+              <>
+                <Text style={[styles.childPickerLabel, { color: colors.mutedForeground }]}>
+                  Selecione os filhos:
+                </Text>
+                {children.map(child => {
+                  const picked = selectedChildIds.includes(child.id);
+                  return (
+                    <TouchableOpacity
+                      key={child.id}
+                      style={[styles.childRow, {
+                        backgroundColor: picked ? '#2196F315' : colors.card,
+                        borderColor: picked ? '#2196F3' : colors.border,
+                      }]}
+                      onPress={() => toggleChild(child.id)}
+                    >
+                      <View style={[styles.childAvatar, { backgroundColor: picked ? '#2196F3' : colors.muted }]}>
+                        <Text style={styles.childAvatarText}>{child.name[0].toUpperCase()}</Text>
+                      </View>
+                      <Text style={[styles.childName, { color: colors.foreground }]}>{child.name}</Text>
+                      {picked
+                        ? <Ionicons name="checkmark-circle" size={22} color="#2196F3" />
+                        : <Ionicons name="ellipse-outline" size={22} color={colors.mutedForeground} />
+                      }
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            )}
+
+            {assignmentType === 'individual' && children.length === 0 && (
+              <View style={[styles.noChildrenNote, { backgroundColor: colors.muted }]}>
+                <Ionicons name="information-circle-outline" size={16} color={colors.mutedForeground} />
+                <Text style={[styles.noChildrenText, { color: colors.mutedForeground }]}>
+                  Nenhum filho cadastrado ainda.
+                </Text>
+              </View>
+            )}
+
+            {assignmentType === 'first' && (
+              <View style={[styles.firstNote, { backgroundColor: '#FF980015', borderColor: '#FF9800' }]}>
+                <Ionicons name="flash" size={16} color="#FF9800" />
+                <Text style={[styles.firstNoteText, { color: '#FF9800' }]}>
+                  O primeiro filho a ter a tarefa aprovada ganha a recompensa. A tarefa some para os outros.
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </View>
       </Modal>
@@ -222,8 +361,10 @@ const styles = StyleSheet.create({
   taskIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   taskInfo: { flex: 1, gap: 4 },
   taskTitle: { fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
-  taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   taskFreq: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  assignBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+  assignBadgeText: { fontSize: 11, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   rewardBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   rewardText: { fontSize: 12, fontWeight: '600' as const, color: '#B7860B', fontFamily: 'Inter_600SemiBold' },
   taskActions: { flexDirection: 'row', gap: 4 },
@@ -241,7 +382,7 @@ const styles = StyleSheet.create({
   cancelText: { fontSize: 16, fontFamily: 'Inter_500Medium' },
   modalTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   saveText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  modalContent: { padding: 20, gap: 8 },
+  modalContent: { padding: 20, gap: 8, paddingBottom: 60 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', marginTop: 8 },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: 'Inter_400Regular' },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
@@ -254,4 +395,30 @@ const styles = StyleSheet.create({
   },
   freqLabel: { flex: 1, fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   freqCheck: { marginLeft: 'auto' },
+  assignOption: {
+    flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14,
+    borderWidth: 1.5, gap: 12,
+  },
+  assignOptionIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  assignOptionText: { flex: 1 },
+  assignOptionLabel: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  assignOptionDesc: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  childPickerLabel: { fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 4 },
+  childRow: {
+    flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14,
+    borderWidth: 1.5, gap: 12,
+  },
+  childAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  childAvatarText: { color: '#ffffff', fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  childName: { flex: 1, fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
+  noChildrenNote: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 12, borderRadius: 12, marginTop: 4,
+  },
+  noChildrenText: { fontSize: 13, fontFamily: 'Inter_400Regular', flex: 1 },
+  firstNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    padding: 12, borderRadius: 12, borderWidth: 1, marginTop: 4,
+  },
+  firstNoteText: { fontSize: 13, fontFamily: 'Inter_500Medium', flex: 1, lineHeight: 18 },
 });
