@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
   Platform, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -126,9 +126,22 @@ export default function CycleScreen() {
           showAddChild ? (
             <View style={[styles.addChildCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Nome completo</Text>
-              <View style={[styles.input, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-                <Ionicons name="person-outline" size={16} color={colors.mutedForeground} />
-              </View>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="Ex: João"
+                placeholderTextColor={colors.mutedForeground}
+                value={newChildName}
+                onChangeText={setNewChildName}
+              />
+              <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Apelido (para login)</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="Ex: joaozinho"
+                placeholderTextColor={colors.mutedForeground}
+                value={newChildNickname}
+                onChangeText={setNewChildNickname}
+                autoCapitalize="none"
+              />
               <TouchableOpacity
                 style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
                 onPress={handleAddChild}
@@ -209,6 +222,7 @@ const styles = StyleSheet.create({
   addChildText: { fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   addChildCard: { borderRadius: 14, padding: 16, borderWidth: 1, gap: 10 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
+  textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: 'Inter_400Regular' },
   input: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 12, borderWidth: 1, gap: 8 },
   confirmBtn: { borderRadius: 12, padding: 12, alignItems: 'center' },
   confirmBtnText: { color: '#ffffff', fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },

@@ -78,7 +78,6 @@ export default function ChildPairingScreen() {
               returnKeyType="next"
               onSubmitEditing={() => nicknameRef.current?.focus()}
               textAlign="center"
-              letterSpacing={8}
             />
 
             <Text style={[styles.label, { color: colors.foreground }]}>Seu apelido</Text>
@@ -148,6 +147,7 @@ const styles = StyleSheet.create({
   pinInput: {
     borderWidth: 2, borderRadius: 14, paddingVertical: 16,
     fontSize: 28, fontWeight: '700' as const, fontFamily: 'Inter_700Bold',
+    letterSpacing: 8,
   },
   input: {
     borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
