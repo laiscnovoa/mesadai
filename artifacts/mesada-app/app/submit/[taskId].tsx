@@ -22,38 +22,26 @@ export default function SubmitTaskScreen() {
   const [loading, setLoading] = useState(false);
 
   const [cameraPermission, requestCameraPermission] = ImagePicker.useCameraPermissions();
-  const [mediaPermission, requestMediaPermission] = ImagePicker.useMediaLibraryPermissions();
 
   const task = tasks.find(t => t.id === taskId);
 
   const takePhoto = async () => {
     if (Platform.OS === 'web') {
-      pickFromGallery();
+      Alert.alert('Câmera necessária', 'Use o aplicativo no celular para tirar a foto de comprovação.');
       return;
     }
     if (!cameraPermission?.granted) {
       const result = await requestCameraPermission();
       if (!result.granted) {
-        Alert.alert('Câmera bloqueada', 'Permita o acesso à câmera nas configurações.');
+        Alert.alert('Câmera bloqueada', 'Permita o acesso à câmera nas configurações do celular.');
         return;
       }
     }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true, aspect: [4, 3] });
-    if (!result.canceled) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setPhotoUri(result.assets[0].uri);
-    }
-  };
-
-  const pickFromGallery = async () => {
-    if (!mediaPermission?.granted && Platform.OS !== 'web') {
-      const result = await requestMediaPermission();
-      if (!result.granted) {
-        Alert.alert('Galeria bloqueada', 'Permita o acesso às fotos nas configurações.');
-        return;
-      }
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.8, allowsEditing: true, aspect: [4, 3] });
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.85,
+      allowsEditing: false,
+      cameraType: ImagePicker.CameraType.back,
+    });
     if (!result.canceled) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setPhotoUri(result.assets[0].uri);
@@ -61,7 +49,7 @@ export default function SubmitTaskScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!photoUri) { Alert.alert('Atenção', 'Tire ou selecione uma foto como comprovação.'); return; }
+    if (!photoUri) { Alert.alert('Atenção', 'Tire uma foto como comprovação antes de enviar.'); return; }
     if (!taskId) return;
     setLoading(true);
     await new Promise(r => setTimeout(r, 500));
@@ -118,34 +106,25 @@ export default function SubmitTaskScreen() {
             <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
             <TouchableOpacity style={[styles.changePhotoBtn, { backgroundColor: colors.card }]} onPress={takePhoto}>
               <Ionicons name="camera" size={18} color={colors.primary} />
-              <Text style={[styles.changePhotoText, { color: colors.primary }]}>Trocar foto</Text>
+              <Text style={[styles.changePhotoText, { color: colors.primary }]}>Tirar outra foto</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.photoActions}>
-            <TouchableOpacity
-              style={[styles.photoBtn, { backgroundColor: colors.primary }]}
-              onPress={takePhoto}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="camera" size={28} color="#ffffff" />
-              <Text style={styles.photoBtnText}>Tirar foto</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.photoBtn, { backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border }]}
-              onPress={pickFromGallery}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="images" size={28} color={colors.primary} />
-              <Text style={[styles.photoBtnText, { color: colors.primary }]}>Da galeria</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.photoBtn, { backgroundColor: colors.primary }]}
+            onPress={takePhoto}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="camera" size={36} color="#ffffff" />
+            <Text style={styles.photoBtnTitle}>Tirar foto agora</Text>
+            <Text style={styles.photoBtnSub}>Mostre que você fez a tarefa!</Text>
+          </TouchableOpacity>
         )}
 
         <View style={[styles.hint, { backgroundColor: colors.muted }]}>
-          <Ionicons name="information-circle-outline" size={16} color={colors.mutedForeground} />
+          <Ionicons name="lock-closed-outline" size={16} color={colors.mutedForeground} />
           <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-            A foto será enviada ao responsável para aprovação.
+            Somente fotos tiradas agora são aceitas — galeria e corte não são permitidos.
           </Text>
         </View>
 
@@ -194,12 +173,12 @@ const styles = StyleSheet.create({
   rewardBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, alignSelf: 'flex-start' },
   rewardText: { fontSize: 14, fontWeight: '700' as const, color: '#B7860B', fontFamily: 'Inter_700Bold' },
   sectionLabel: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  photoActions: { flexDirection: 'row', gap: 12 },
   photoBtn: {
-    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 32, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 40, borderRadius: 20,
   },
-  photoBtnText: { fontSize: 15, fontWeight: '600' as const, color: '#ffffff', fontFamily: 'Inter_600SemiBold' },
+  photoBtnTitle: { fontSize: 18, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
+  photoBtnSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_400Regular' },
   photoPreviewContainer: { gap: 10 },
   photoPreview: { width: '100%', height: 240, borderRadius: 20 },
   changePhotoBtn: {
