@@ -34,7 +34,7 @@ interface AppContextType {
 
   setupParent: (data: SetupData) => Promise<void>;
   updateCycleEndDate: (newEndDate: string) => void;
-  loginAsParent: () => void;
+  loginAsParent: (pin: string) => boolean;
   loginAsChild: (pin: string, nickname: string) => boolean;
   logout: () => void;
 
@@ -110,6 +110,7 @@ export function AppProvider({ children: reactChildren }: { children: React.React
       name: data.familyName.trim(),
       parentName: data.parentName.trim(),
       pin: Math.floor(100000 + Math.random() * 900000).toString(),
+      parentPin: data.parentPin.trim(),
       cycleEndDate: data.cycleEndDate,
       cycleStartDate: getTodayKey(),
     };
@@ -123,8 +124,15 @@ export function AppProvider({ children: reactChildren }: { children: React.React
     await persistSession({ currentRole: 'parent', currentChildId: null });
   };
 
-  const loginAsParent = () => {
+  const loginAsParent = (pin: string): boolean => {
+    if (!appData.family) return false;
+    if (!appData.family.parentPin) {
+      persistSession({ currentRole: 'parent', currentChildId: null });
+      return true;
+    }
+    if (appData.family.parentPin !== pin.trim()) return false;
     persistSession({ currentRole: 'parent', currentChildId: null });
+    return true;
   };
 
   const loginAsChild = (pin: string, nickname: string): boolean => {

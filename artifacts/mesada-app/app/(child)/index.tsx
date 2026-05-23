@@ -68,8 +68,9 @@ export default function ChildMissionsScreen() {
                 </View>
                 <View style={styles.headerRight}>
                   <StreakBadge streak={streak} />
-                  <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
-                    <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.7)" />
+                  <TouchableOpacity onPress={logout} style={styles.logoutBtn} testID="child-home-btn">
+                    <Ionicons name="home" size={16} color="#ffffff" />
+                    <Text style={styles.logoutText}>Início</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -141,7 +142,12 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 22, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
   subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoutBtn: { padding: 6 },
+  logoutBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  logoutText: { color: '#ffffff', fontSize: 12, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   cofriContainer: { alignItems: 'center', paddingVertical: 4 },
   statsRow: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 12 },
   statItem: { flex: 1, alignItems: 'center', gap: 2 },

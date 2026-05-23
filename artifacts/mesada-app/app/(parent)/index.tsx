@@ -38,8 +38,9 @@ export default function ParentDashboard() {
             <Text style={styles.headerGreeting}>Olá, {family?.parentName ?? 'Responsável'}</Text>
             <Text style={styles.headerFamily}>{family?.name}</Text>
           </View>
-          <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
-            <Ionicons name="log-out-outline" size={22} color="rgba(255,255,255,0.85)" />
+          <TouchableOpacity onPress={logout} style={styles.logoutBtn} testID="parent-home-btn">
+            <Ionicons name="home" size={18} color="#ffffff" />
+            <Text style={styles.logoutText}>Início</Text>
           </TouchableOpacity>
         </View>
 
@@ -121,7 +122,12 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   headerGreeting: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_400Regular' },
   headerFamily: { fontSize: 22, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
-  logoutBtn: { padding: 8 },
+  logoutBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  logoutText: { color: '#ffffff', fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   statsRow: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 12 },
   statCard: { flex: 1, alignItems: 'center', gap: 2 },
   statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)' },

@@ -36,6 +36,7 @@ export interface Family {
   name: string;
   parentName: string;
   pin: string;
+  parentPin: string;
   cycleEndDate: string;
   cycleStartDate: string;
 }
@@ -98,6 +99,7 @@ export interface SubmissionWithTask {
 export interface SetupData {
   familyName: string;
   parentName: string;
+  parentPin: string;
   cycleEndDate: string;
   childName: string;
   childNickname: string;

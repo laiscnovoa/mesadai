@@ -42,13 +42,31 @@ export default function ParentLoginScreen() {
   const [familyName, setFamilyName] = useState('');
   const [parentName, setParentName] = useState('');
   const [cycleDateInput, setCycleDateInput] = useState('');
+  const [parentPin, setParentPin] = useState('');
+  const [parentPinConfirm, setParentPinConfirm] = useState('');
   const [childName, setChildName] = useState('');
   const [childNickname, setChildNickname] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Login state (existing family)
+  const [loginPin, setLoginPin] = useState('');
+  const [loginError, setLoginError] = useState('');
+
   const handleExistingLogin = () => {
-    loginAsParent();
-    router.replace('/(parent)');
+    if (loginPin.length < 4) {
+      setLoginError('Digite o PIN de 4 dígitos.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    const ok = loginAsParent(loginPin);
+    if (ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(parent)');
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setLoginError('PIN incorreto. Tente novamente.');
+      setLoginPin('');
+    }
   };
 
   const nextStep = () => {
@@ -60,6 +78,16 @@ export default function ParentLoginScreen() {
       const iso = parseDateBR(cycleDateInput.replace(/\D/g, '').slice(0, 8));
       if (!iso) {
         Alert.alert('Data inválida', 'Informe uma data futura válida no formato DD/MM/AAAA.');
+        return;
+      }
+    }
+    if (step === 3) {
+      if (parentPin.length !== 4) {
+        Alert.alert('Atenção', 'O PIN do responsável deve ter 4 dígitos.');
+        return;
+      }
+      if (parentPin !== parentPinConfirm) {
+        Alert.alert('Atenção', 'Os PINs não conferem.');
         return;
       }
     }
@@ -80,9 +108,13 @@ export default function ParentLoginScreen() {
       Alert.alert('Data inválida', 'Volte e informe uma data futura válida.');
       return;
     }
+    if (parentPin.length !== 4) {
+      Alert.alert('Atenção', 'Volte e defina o PIN do responsável.');
+      return;
+    }
     setLoading(true);
     try {
-      await setupParent({ familyName, parentName, cycleEndDate, childName, childNickname });
+      await setupParent({ familyName, parentName, parentPin, cycleEndDate, childName, childNickname });
       router.replace('/(parent)');
     } finally {
       setLoading(false);
@@ -92,65 +124,111 @@ export default function ParentLoginScreen() {
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const botPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24;
 
+  // === Existing family: PIN entry ===
   if (family) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+          <TouchableOpacity onPress={() => router.replace('/')} style={styles.backBtn}>
+            <Ionicons name="home" size={22} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Entrar</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Entrar como Responsável</Text>
         </View>
-        <View style={styles.centerContent}>
+
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad }]} keyboardShouldPersistTaps="handled">
           <View style={[styles.familyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.familyIcon, { backgroundColor: colors.secondary }]}>
-              <Text style={styles.familyEmoji}>🐷</Text>
+              <Text style={styles.familyEmoji}>🏠</Text>
             </View>
             <Text style={[styles.familyName, { color: colors.foreground }]}>{family.name}</Text>
             <Text style={[styles.familySub, { color: colors.mutedForeground }]}>Olá, {family.parentName}!</Text>
-            <TouchableOpacity
-              style={[styles.pinBox, { backgroundColor: colors.muted }]}
-              onPress={async () => {
-                await Clipboard.setStringAsync(family.pin);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert('PIN copiado!', 'Cole onde precisar compartilhar com o adolescente.');
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.pinLabel, { color: colors.mutedForeground }]}>PIN do adolescente</Text>
-              <Text style={[styles.pin, { color: colors.primary }]}>{family.pin}</Text>
-              <View style={styles.copyRow}>
-                <Ionicons name="copy-outline" size={14} color={colors.mutedForeground} />
-                <Text style={[styles.copyText, { color: colors.mutedForeground }]}>Toque para copiar</Text>
+          </View>
+
+          <View style={[styles.loginCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.lockRow}>
+              <Ionicons name="lock-closed" size={18} color={colors.primary} />
+              <Text style={[styles.loginLabel, { color: colors.foreground }]}>Digite seu PIN (4 dígitos)</Text>
+            </View>
+
+            <TextInput
+              testID="parent-pin-input"
+              style={[styles.pinInput, {
+                backgroundColor: colors.muted,
+                color: colors.foreground,
+                borderColor: loginPin.length === 4 ? colors.primary : colors.border,
+              }]}
+              placeholder="••••"
+              placeholderTextColor={colors.mutedForeground}
+              value={loginPin}
+              onChangeText={v => { setLoginPin(v.replace(/\D/g, '').slice(0, 4)); setLoginError(''); }}
+              keyboardType="number-pad"
+              maxLength={4}
+              secureTextEntry
+              textAlign="center"
+              returnKeyType="done"
+              onSubmitEditing={handleExistingLogin}
+              autoFocus
+            />
+
+            {loginError ? (
+              <View style={[styles.errorBox, { backgroundColor: '#FFF5F5' }]}>
+                <Ionicons name="alert-circle" size={16} color={colors.destructive} />
+                <Text style={[styles.errorText, { color: colors.destructive }]}>{loginError}</Text>
               </View>
+            ) : (
+              <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+                Esse PIN protege seus dados do adolescente.
+              </Text>
+            )}
+
+            <TouchableOpacity
+              testID="login-parent-btn"
+              style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+              onPress={handleExistingLogin}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Entrar</Text>
+              <Ionicons name="arrow-forward" size={20} color={colors.primaryForeground} />
             </TouchableOpacity>
           </View>
+
+          {/* Child PIN reference - only displayed AFTER successful login? No, we keep it discoverable here for sharing */}
           <TouchableOpacity
-            testID="login-parent-btn"
-            style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-            onPress={handleExistingLogin}
-            activeOpacity={0.85}
+            style={[styles.childPinHint, { backgroundColor: colors.muted, borderColor: colors.border }]}
+            onPress={async () => {
+              await Clipboard.setStringAsync(family.pin);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('PIN do adolescente copiado!', 'Compartilhe com seu(ua) filho(a).');
+            }}
+            activeOpacity={0.7}
           >
-            <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Entrar como Responsável</Text>
-            <Ionicons name="arrow-forward" size={20} color={colors.primaryForeground} />
+            <Ionicons name="key-outline" size={16} color={colors.mutedForeground} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.childPinLabel, { color: colors.mutedForeground }]}>
+                PIN do adolescente (para compartilhar)
+              </Text>
+              <Text style={[styles.childPinValue, { color: colors.foreground }]}>{family.pin}</Text>
+            </View>
+            <Ionicons name="copy-outline" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
     );
   }
 
+  // === New family setup (4 steps) ===
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad }]}>
-        <TouchableOpacity onPress={() => step > 1 ? setStep(s => s - 1) : router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+        <TouchableOpacity onPress={() => step > 1 ? setStep(s => s - 1) : router.replace('/')} style={styles.backBtn}>
+          <Ionicons name={step > 1 ? 'arrow-back' : 'home'} size={22} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Criar Caixinha</Text>
-        <Text style={[styles.stepIndicator, { color: colors.mutedForeground }]}>{step}/3</Text>
+        <Text style={[styles.stepIndicator, { color: colors.mutedForeground }]}>{step}/4</Text>
       </View>
 
       <View style={[styles.stepDots, { borderBottomColor: colors.border }]}>
-        {[1, 2, 3].map(s => (
+        {[1, 2, 3, 4].map(s => (
           <View key={s} style={[styles.dot, { backgroundColor: s <= step ? colors.primary : colors.muted }]} />
         ))}
       </View>
@@ -216,6 +294,58 @@ export default function ParentLoginScreen() {
 
         {step === 3 && (
           <View style={styles.stepContent}>
+            <Text style={styles.stepEmoji}>🔐</Text>
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>Crie seu PIN</Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              Um PIN de 4 dígitos para você (responsável) entrar. Não compartilhe com o(a) adolescente.
+            </Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Seu PIN (4 dígitos)</Text>
+            <TextInput
+              style={[styles.pinSetupInput, {
+                backgroundColor: colors.card,
+                color: colors.foreground,
+                borderColor: parentPin.length === 4 ? colors.primary : colors.border,
+              }]}
+              placeholder="••••"
+              placeholderTextColor={colors.mutedForeground}
+              value={parentPin}
+              onChangeText={v => setParentPin(v.replace(/\D/g, '').slice(0, 4))}
+              keyboardType="number-pad"
+              maxLength={4}
+              secureTextEntry
+              textAlign="center"
+            />
+            <Text style={[styles.label, { color: colors.foreground }]}>Confirme o PIN</Text>
+            <TextInput
+              style={[styles.pinSetupInput, {
+                backgroundColor: colors.card,
+                color: colors.foreground,
+                borderColor: parentPinConfirm.length === 4 && parentPinConfirm === parentPin ? colors.primary : colors.border,
+              }]}
+              placeholder="••••"
+              placeholderTextColor={colors.mutedForeground}
+              value={parentPinConfirm}
+              onChangeText={v => setParentPinConfirm(v.replace(/\D/g, '').slice(0, 4))}
+              keyboardType="number-pad"
+              maxLength={4}
+              secureTextEntry
+              textAlign="center"
+            />
+            <View style={[styles.dateHint, { backgroundColor: '#FFF8E1' }]}>
+              <Ionicons name="warning-outline" size={16} color="#B7860B" />
+              <Text style={[styles.dateHintText, { color: '#B7860B' }]}>
+                Guarde bem! Sem esse PIN você não conseguirá aprovar tarefas.
+              </Text>
+            </View>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={nextStep} activeOpacity={0.85}>
+              <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Próximo</Text>
+              <Ionicons name="arrow-forward" size={20} color={colors.primaryForeground} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {step === 4 && (
+          <View style={styles.stepContent}>
             <Text style={styles.stepEmoji}>👦</Text>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>Adicionar filho(a)</Text>
             <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>O apelido será usado para fazer login.</Text>
@@ -272,6 +402,11 @@ const styles = StyleSheet.create({
   stepSub: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', marginBottom: 8 },
   label: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', marginTop: 4 },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: 'Inter_400Regular' },
+  pinSetupInput: {
+    borderWidth: 2, borderRadius: 14, paddingVertical: 16,
+    fontSize: 28, fontWeight: '700' as const, fontFamily: 'Inter_700Bold',
+    letterSpacing: 12,
+  },
   dateHint: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 12 },
   dateHintText: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular' },
   primaryBtn: {
@@ -279,15 +414,27 @@ const styles = StyleSheet.create({
     gap: 10, borderRadius: 16, paddingVertical: 16, marginTop: 8,
   },
   primaryBtnText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  centerContent: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, gap: 16 },
-  familyCard: { borderRadius: 20, padding: 24, alignItems: 'center', gap: 12, borderWidth: 1 },
-  familyIcon: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  familyEmoji: { fontSize: 36 },
-  familyName: { fontSize: 24, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  familySub: { fontSize: 16, fontFamily: 'Inter_400Regular' },
-  pinBox: { width: '100%', borderRadius: 14, padding: 16, alignItems: 'center', gap: 4 },
-  pinLabel: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  pin: { fontSize: 32, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', letterSpacing: 6 },
-  copyRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  copyText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  scrollContent: { paddingHorizontal: 24, gap: 16 },
+  familyCard: { borderRadius: 20, padding: 24, alignItems: 'center', gap: 8, borderWidth: 1 },
+  familyIcon: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  familyEmoji: { fontSize: 32 },
+  familyName: { fontSize: 22, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  familySub: { fontSize: 15, fontFamily: 'Inter_400Regular' },
+  loginCard: { borderRadius: 20, padding: 20, gap: 12, borderWidth: 1 },
+  lockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  loginLabel: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
+  pinInput: {
+    borderWidth: 2, borderRadius: 14, paddingVertical: 18,
+    fontSize: 32, fontWeight: '700' as const, fontFamily: 'Inter_700Bold',
+    letterSpacing: 14,
+  },
+  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12 },
+  errorText: { fontSize: 13, flex: 1, fontFamily: 'Inter_400Regular' },
+  hintText: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  childPinHint: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: 14, borderWidth: 1,
+  },
+  childPinLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  childPinValue: { fontSize: 18, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', letterSpacing: 4 },
 });
