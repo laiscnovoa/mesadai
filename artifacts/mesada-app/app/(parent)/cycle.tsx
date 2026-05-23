@@ -170,9 +170,9 @@ export default function CycleScreen() {
         {children.length > 0 && (
           <>
             <View style={styles.betSectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🎯 Apostas Ativas</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🎯 Bônus Ativos</Text>
               {activeBets.length === 0 && (
-                <Text style={[styles.betNone, { color: colors.mutedForeground }]}>Nenhuma aposta ativa</Text>
+                <Text style={[styles.betNone, { color: colors.mutedForeground }]}>Nenhum bônus ativo</Text>
               )}
             </View>
             {activeBets.map(bet => {
@@ -226,7 +226,7 @@ export default function CycleScreen() {
               onPress={() => setShowBetHistory(v => !v)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Histórico de Apostas</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Histórico de Bônus</Text>
               <Ionicons
                 name={showBetHistory ? 'chevron-up' : 'chevron-down'}
                 size={18}

@@ -101,7 +101,7 @@ export default function ProgressScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name={activeBet ? 'trophy' : 'dice-outline'} size={15} color="#ffffff" />
-              <Text style={styles.betButtonText}>{activeBet ? 'Aposta ativa' : 'Fazer Aposta'}</Text>
+              <Text style={styles.betButtonText}>{activeBet ? 'Bônus ativo' : 'Ativar Bônus'}</Text>
             </TouchableOpacity>
           </View>
         </LinearGradient>
@@ -113,7 +113,7 @@ export default function ProgressScreen() {
         {activeBet && (
           <>
             <View style={[styles.sectionHeader, { paddingTop: 12 }]}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🎯 Aposta Ativa</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🎯 Bônus Ativo</Text>
             </View>
             <ActiveBetCard bet={activeBet} currentStreak={streak} currentBalance={balance} />
           </>
@@ -123,7 +123,7 @@ export default function ProgressScreen() {
         {betHistory.length > 0 && (
           <>
             <View style={[styles.sectionHeader, { paddingTop: activeBet ? 4 : 12 }]}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Histórico de Apostas</Text>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Histórico de Bônus</Text>
             </View>
             {betHistory.map(bet => {
               const won = bet.status === 'won';
@@ -165,7 +165,7 @@ export default function ProgressScreen() {
                     )}
                     {!won && (
                       <Text style={[styles.betHistBonus, { color: colors.mutedForeground }]}>
-                        +{bet.bonusPercent}% perdido
+                        Bônus não conquistado
                       </Text>
                     )}
                   </View>

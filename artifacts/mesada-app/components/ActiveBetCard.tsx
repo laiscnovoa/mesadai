@@ -25,7 +25,7 @@ export function ActiveBetCard({ bet, currentStreak, currentBalance }: Props) {
           <Ionicons name="flame" size={22} color={colors.streak} />
         </View>
         <View style={styles.titleSection}>
-          <Text style={[styles.title, { color: colors.foreground }]}>Aposta Ativa</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Bônus Ativo</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             {daysLeft === 0 ? 'Objetivo alcançado!' : `${daysLeft} dia${daysLeft !== 1 ? 's' : ''} restante${daysLeft !== 1 ? 's' : ''}`}
           </Text>

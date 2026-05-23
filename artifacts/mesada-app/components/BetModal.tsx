@@ -31,18 +31,18 @@ export function BetModal({ visible, onClose, childId }: Props) {
 
   const handleConfirm = () => {
     if (!selected) {
-      Alert.alert('Atenção', 'Escolha uma duração para a aposta.');
+      Alert.alert('Atenção', 'Escolha uma duração para o bônus.');
       return;
     }
     const bonusPct = STREAK_BET_BONUS[selected];
     const bonusEstimate = Math.round(balance * bonusPct / 100);
     Alert.alert(
-      'Confirmar aposta',
-      `Apostar ${selected} dias de streak consecutivos?\n\nSe conseguir, você ganha +${bonusPct}% do seu saldo atual (≈ ${formatCurrency(bonusEstimate)}) como bônus!`,
+      'Confirmar bônus',
+      `Manter ${selected} dias consecutivos de streak?\n\nSe conseguir, você ganha +${bonusPct}% do seu saldo atual (≈ ${formatCurrency(bonusEstimate)}) como bônus!`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Apostar!',
+          text: 'Ativar!',
           onPress: () => {
             const ok = placeBet(childId, selected);
             if (ok) {
@@ -50,7 +50,7 @@ export function BetModal({ visible, onClose, childId }: Props) {
               setSelected(null);
               onClose();
             } else {
-              Alert.alert('Erro', 'Não foi possível criar a aposta.');
+              Alert.alert('Erro', 'Não foi possível ativar o bônus.');
             }
           },
         },
@@ -65,10 +65,10 @@ export function BetModal({ visible, onClose, childId }: Props) {
           <TouchableOpacity onPress={onClose}>
             <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancelar</Text>
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.foreground }]}>Fazer Aposta</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Ativar Bônus</Text>
           <TouchableOpacity onPress={handleConfirm} disabled={hasActiveBet || !selected}>
             <Text style={[styles.confirmText, { color: hasActiveBet || !selected ? colors.mutedForeground : colors.primary }]}>
-              Apostar!
+              Ativar!
             </Text>
           </TouchableOpacity>
         </View>
@@ -77,7 +77,7 @@ export function BetModal({ visible, onClose, childId }: Props) {
           <View style={styles.heroRow}>
             <Text style={styles.heroEmoji}>🔥</Text>
             <View style={styles.heroText}>
-              <Text style={[styles.heroTitle, { color: colors.foreground }]}>Aposte no seu streak!</Text>
+              <Text style={[styles.heroTitle, { color: colors.foreground }]}>Garanta seu bônus de streak!</Text>
               <Text style={[styles.heroDesc, { color: colors.mutedForeground }]}>
                 Mantenha dias consecutivos e ganhe um bônus sobre seu saldo atual.
               </Text>
@@ -88,7 +88,7 @@ export function BetModal({ visible, onClose, childId }: Props) {
             <View style={[styles.activeBanner, { backgroundColor: colors.warning + '20', borderColor: colors.warning }]}>
               <Ionicons name="warning-outline" size={18} color={colors.warning} />
               <Text style={[styles.activeBannerText, { color: colors.warning }]}>
-                Você já tem uma aposta ativa. Conclua ou perca antes de fazer nova aposta.
+                Você já tem um bônus ativo. Complete o streak para recebê-lo!
               </Text>
             </View>
           )}
@@ -130,7 +130,7 @@ export function BetModal({ visible, onClose, childId }: Props) {
           })}
 
           <Text style={[styles.disclaimer, { color: colors.mutedForeground }]}>
-            O bônus é calculado sobre o saldo do ciclo no momento da conclusão da aposta.
+            O bônus é calculado sobre o saldo do ciclo quando você completar o streak.
           </Text>
         </View>
       </View>
