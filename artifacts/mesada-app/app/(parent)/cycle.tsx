@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { formatCurrency, formatDate } from '@/types';
@@ -204,13 +205,24 @@ export default function CycleScreen() {
 
         {/* PIN Info */}
         {family && (
-          <View style={[styles.pinCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.pinCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={async () => {
+              await Clipboard.setStringAsync(family.pin);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('PIN copiado!', 'Cole onde precisar compartilhar com o adolescente ou outro responsável.');
+            }}
+            activeOpacity={0.8}
+          >
             <Ionicons name="key" size={22} color={colors.accent} />
             <View style={styles.pinInfo}>
               <Text style={[styles.pinLabel, { color: colors.foreground }]}>PIN do adolescente</Text>
               <Text style={[styles.pinValue, { color: colors.primary }]}>{family.pin}</Text>
             </View>
-          </View>
+            <View style={styles.copyChip}>
+              <Ionicons name="copy-outline" size={16} color={colors.mutedForeground} />
+            </View>
+          </TouchableOpacity>
         )}
 
         {/* Close cycle button */}
@@ -305,6 +317,11 @@ const styles = StyleSheet.create({
   pinInfo: { flex: 1 },
   pinLabel: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   pinValue: { fontSize: 28, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', letterSpacing: 6 },
+  copyChip: {
+    width: 36, height: 36, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
   closeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 10, padding: 16, borderRadius: 16, borderWidth: 1.5, marginTop: 8,

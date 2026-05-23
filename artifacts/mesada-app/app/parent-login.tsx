@@ -6,6 +6,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -106,10 +108,22 @@ export default function ParentLoginScreen() {
             </View>
             <Text style={[styles.familyName, { color: colors.foreground }]}>{family.name}</Text>
             <Text style={[styles.familySub, { color: colors.mutedForeground }]}>Olá, {family.parentName}!</Text>
-            <View style={[styles.pinBox, { backgroundColor: colors.muted }]}>
+            <TouchableOpacity
+              style={[styles.pinBox, { backgroundColor: colors.muted }]}
+              onPress={async () => {
+                await Clipboard.setStringAsync(family.pin);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('PIN copiado!', 'Cole onde precisar compartilhar com o adolescente.');
+              }}
+              activeOpacity={0.8}
+            >
               <Text style={[styles.pinLabel, { color: colors.mutedForeground }]}>PIN do adolescente</Text>
               <Text style={[styles.pin, { color: colors.primary }]}>{family.pin}</Text>
-            </View>
+              <View style={styles.copyRow}>
+                <Ionicons name="copy-outline" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.copyText, { color: colors.mutedForeground }]}>Toque para copiar</Text>
+              </View>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             testID="login-parent-btn"
@@ -274,4 +288,6 @@ const styles = StyleSheet.create({
   pinBox: { width: '100%', borderRadius: 14, padding: 16, alignItems: 'center', gap: 4 },
   pinLabel: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   pin: { fontSize: 32, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', letterSpacing: 6 },
+  copyRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  copyText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
 });
