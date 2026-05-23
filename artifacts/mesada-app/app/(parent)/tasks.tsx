@@ -43,10 +43,11 @@ const ASSIGNMENT_ICONS: Record<TaskAssignmentType, keyof typeof Ionicons.glyphMa
 };
 
 export default function TasksScreen() {
-  const { tasks, children, addTask, toggleTask, deleteTask, isTaskClaimedForCycle } = useApp();
+  const { tasks, children, addTask, toggleTask, deleteTask, updateTask, isTaskClaimedForCycle } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [showModal, setShowModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [rewardStr, setRewardStr] = useState('');
@@ -57,12 +58,24 @@ export default function TasksScreen() {
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
 
   const openCreate = () => {
+    setEditingTask(null);
     setTitle('');
     setDescription('');
     setRewardStr('');
     setFrequency('daily');
     setAssignmentType('all');
     setSelectedChildIds([]);
+    setShowModal(true);
+  };
+
+  const openEdit = (task: Task) => {
+    setEditingTask(task);
+    setTitle(task.title);
+    setDescription(task.description ?? '');
+    setRewardStr((task.rewardCents / 100).toFixed(2).replace('.', ','));
+    setFrequency(task.frequency);
+    setAssignmentType(task.assignmentType ?? 'all');
+    setSelectedChildIds(task.assignedChildIds ?? []);
     setShowModal(true);
   };
 
@@ -80,14 +93,26 @@ export default function TasksScreen() {
       Alert.alert('Atenção', 'Selecione pelo menos um filho para a tarefa individual.'); return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    addTask({
-      title: title.trim(),
-      description: description.trim(),
-      rewardCents: reward,
-      frequency,
-      assignmentType,
-      assignedChildIds: assignmentType === 'individual' ? selectedChildIds : [],
-    });
+    if (editingTask) {
+      updateTask({
+        ...editingTask,
+        title: title.trim(),
+        description: description.trim(),
+        rewardCents: reward,
+        frequency,
+        assignmentType,
+        assignedChildIds: assignmentType === 'individual' ? selectedChildIds : [],
+      });
+    } else {
+      addTask({
+        title: title.trim(),
+        description: description.trim(),
+        rewardCents: reward,
+        frequency,
+        assignmentType,
+        assignedChildIds: assignmentType === 'individual' ? selectedChildIds : [],
+      });
+    }
     setShowModal(false);
   };
 
@@ -140,6 +165,9 @@ export default function TasksScreen() {
           </View>
         </View>
         <View style={styles.taskActions}>
+          <TouchableOpacity onPress={() => openEdit(item)} style={styles.actionBtn}>
+            <Ionicons name="pencil-outline" size={21} color={colors.primary} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => toggleTask(item.id)} style={styles.actionBtn}>
             <Ionicons name={item.active ? 'pause-circle' : 'play-circle'} size={24} color={item.active ? colors.warning : colors.success} />
           </TouchableOpacity>
@@ -198,7 +226,7 @@ export default function TasksScreen() {
             <TouchableOpacity onPress={() => setShowModal(false)}>
               <Text style={[styles.cancelText, { color: colors.destructive }]}>Cancelar</Text>
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Nova Tarefa</Text>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>{editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}</Text>
             <TouchableOpacity onPress={handleSave}>
               <Text style={[styles.saveText, { color: colors.primary }]}>Salvar</Text>
             </TouchableOpacity>
