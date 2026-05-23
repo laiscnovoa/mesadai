@@ -1,12 +1,13 @@
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Feather } from '@expo/vector-icons';
 import { SymbolView } from 'expo-symbols';
 import React from 'react';
 import { Platform, StyleSheet, View, useColorScheme } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { useApp } from '@/context/AppContext';
 
 function NativeChildTabs() {
   return (
@@ -19,6 +20,10 @@ function NativeChildTabs() {
         <Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />
         <Label>Progresso</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="logout">
+        <Icon sf={{ default: 'rectangle.portrait.and.arrow.right', selected: 'rectangle.portrait.and.arrow.right' }} />
+        <Label>Sair</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -28,6 +33,8 @@ function ClassicChildTabs() {
   const isDark = useColorScheme() === 'dark';
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
+  const { logout } = useApp();
+  const router = useRouter();
 
   return (
     <Tabs
@@ -65,6 +72,20 @@ function ClassicChildTabs() {
           title: 'Progresso',
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="chart.bar" tintColor={color} size={24} /> : <Feather name="bar-chart-2" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="logout"
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            logout();
+          },
+        }}
+        options={{
+          title: 'Sair',
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="rectangle.portrait.and.arrow.right" tintColor={color} size={24} /> : <Feather name="log-out" size={22} color={color} />,
         }}
       />
     </Tabs>
