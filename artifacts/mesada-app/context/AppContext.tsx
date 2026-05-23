@@ -4,6 +4,7 @@ import {
   Family, Child, Task, TaskSubmission, SavingsGoal,
   Mission, SubmissionWithTask, UserRole, SubmissionStatus,
   TaskAssignmentType, generateId, getTodayKey, SetupData,
+  StreakBet, StreakBetDuration, StreakBetStatus, STREAK_BET_BONUS,
 } from '@/types';
 
 const STORAGE_KEY = 'mesada_data_v1';
@@ -15,6 +16,7 @@ interface AppData {
   tasks: Task[];
   submissions: TaskSubmission[];
   goals: SavingsGoal[];
+  streakBets: StreakBet[];
 }
 
 interface SessionState {
@@ -29,6 +31,7 @@ interface AppContextType {
   tasks: Task[];
   submissions: TaskSubmission[];
   goals: SavingsGoal[];
+  streakBets: StreakBet[];
   currentRole: UserRole;
   currentChildId: string | null;
 
@@ -55,6 +58,10 @@ interface AppContextType {
   addChild: (name: string, nickname: string) => void;
   closeCycle: (newEndDate: string) => void;
 
+  placeBet: (childId: string, durationDays: StreakBetDuration) => boolean;
+  getActiveBet: (childId: string) => StreakBet | null;
+  getChildBetHistory: (childId: string) => StreakBet[];
+
   getCurrentChild: () => Child | null;
   getTodaysMissions: (childId?: string) => Mission[];
   getChildBalance: (childId: string) => number;
@@ -68,7 +75,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
-const defaultData: AppData = { family: null, children: [], tasks: [], submissions: [], goals: [] };
+const defaultData: AppData = { family: null, children: [], tasks: [], submissions: [], goals: [], streakBets: [] };
 const defaultSession: SessionState = { currentRole: null, currentChildId: null };
 
 export function AppProvider({ children: reactChildren }: { children: React.ReactNode }) {
@@ -83,7 +90,11 @@ export function AppProvider({ children: reactChildren }: { children: React.React
           AsyncStorage.getItem(STORAGE_KEY),
           AsyncStorage.getItem(SESSION_KEY),
         ]);
-        if (dataStr) setAppData(JSON.parse(dataStr));
+        if (dataStr) {
+          const parsed = JSON.parse(dataStr);
+          if (!parsed.streakBets) parsed.streakBets = [];
+          setAppData(parsed);
+        }
         if (sessionStr) setSession(JSON.parse(sessionStr));
       } catch (e) {
         console.error('Load error', e);
@@ -102,6 +113,102 @@ export function AppProvider({ children: reactChildren }: { children: React.React
     setSession(newSession);
     await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(newSession));
   }, []);
+
+  const hasBetStreakBroken = (submissions: TaskSubmission[], childId: string, startDate: string): boolean => {
+    const today = getTodayKey();
+    const todayDate = new Date(today + 'T00:00:00');
+    const d = new Date(startDate + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    while (d < todayDate) {
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const hasApproved = submissions.some(
+        s => s.childId === childId && s.submittedForDate === dateKey &&
+          (s.status === 'approved' || s.status === 'partial') &&
+          s.taskId !== '__streak_bet_bonus__'
+      );
+      if (!hasApproved) return true;
+      d.setDate(d.getDate() + 1);
+    }
+    return false;
+  };
+
+  const resolveStreakBets = (data: AppData, childId: string): AppData => {
+    const activeBet = data.streakBets.find(b => b.childId === childId && b.status === 'active');
+    if (!activeBet) return data;
+
+    const currentStreak = computeStreak(data.submissions, childId);
+    const today = getTodayKey();
+    const targetStreak = activeBet.startStreak + activeBet.durationDays;
+
+    let updatedBet = { ...activeBet };
+
+    if (currentStreak >= targetStreak) {
+      const balance = computeBalance(data, childId);
+      const bonusCents = Math.round(balance * activeBet.bonusPercent / 100);
+      updatedBet = {
+        ...updatedBet,
+        status: 'won' as StreakBetStatus,
+        bonusCentsAwarded: bonusCents,
+        resolvedAt: new Date().toISOString(),
+      };
+      const bonusSub: TaskSubmission = {
+        id: generateId(),
+        taskId: '__streak_bet_bonus__',
+        childId,
+        familyId: activeBet.familyId,
+        photoUri: '',
+        status: 'approved',
+        rewardCentsAwarded: bonusCents,
+        submittedForDate: today,
+        submittedAt: new Date().toISOString(),
+        reviewedAt: new Date().toISOString(),
+        reviewNote: `Bônus da aposta de ${activeBet.durationDays} dias`,
+      };
+      data = { ...data, submissions: [...data.submissions, bonusSub] };
+    } else if (hasBetStreakBroken(data.submissions, childId, activeBet.startDate)) {
+      updatedBet = { ...updatedBet, status: 'lost' as StreakBetStatus, resolvedAt: new Date().toISOString() };
+    }
+
+    if (updatedBet.status !== activeBet.status) {
+      data = { ...data, streakBets: data.streakBets.map(b => b.id === activeBet.id ? updatedBet : b) };
+    }
+    return data;
+  };
+
+  const resolveAllActiveStreakBets = (data: AppData): AppData => {
+    let result = data;
+    for (const child of data.children) {
+      result = resolveStreakBets(result, child.id);
+    }
+    return result;
+  };
+
+  const computeStreak = (submissions: TaskSubmission[], childId: string): number => {
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dateKey = d.toISOString().split('T')[0];
+      const hasApproved = submissions.some(
+        s => s.childId === childId && s.submittedForDate === dateKey &&
+          (s.status === 'approved' || s.status === 'partial') &&
+          s.taskId !== '__streak_bet_bonus__'
+      );
+      if (hasApproved) { streak++; }
+      else if (i > 0) { break; }
+    }
+    return streak;
+  };
+
+  const computeBalance = (data: AppData, childId: string): number => {
+    if (!data.family) return 0;
+    const cycleStart = new Date(data.family.cycleStartDate + 'T00:00:00');
+    return data.submissions
+      .filter(s => s.childId === childId && (s.status === 'approved' || s.status === 'partial') && new Date(s.submittedAt) >= cycleStart)
+      .reduce((sum, s) => sum + s.rewardCentsAwarded, 0);
+  };
 
   const setupParent = async (data: SetupData) => {
     const familyId = generateId();
@@ -194,12 +301,17 @@ export function AppProvider({ children: reactChildren }: { children: React.React
   };
 
   const reviewSubmission = (id: string, status: 'approved' | 'partial' | 'rejected', rewardCents: number, note?: string) => {
-    persist({
+    const sub = appData.submissions.find(s => s.id === id);
+    let newData: AppData = {
       ...appData,
       submissions: appData.submissions.map(s =>
         s.id === id ? { ...s, status, rewardCentsAwarded: rewardCents, reviewedAt: new Date().toISOString(), reviewNote: note } : s
       ),
-    });
+    };
+    if (sub) {
+      newData = resolveStreakBets(newData, sub.childId);
+    }
+    persist(newData);
   };
 
   const submitAppeal = (id: string, text: string) => {
@@ -214,7 +326,7 @@ export function AppProvider({ children: reactChildren }: { children: React.React
   const reviewAppeal = (id: string, approved: boolean, note?: string) => {
     const sub = appData.submissions.find(s => s.id === id);
     const task = appData.tasks.find(t => t.id === sub?.taskId);
-    persist({
+    let newData: AppData = {
       ...appData,
       submissions: appData.submissions.map(s =>
         s.id === id ? {
@@ -225,7 +337,11 @@ export function AppProvider({ children: reactChildren }: { children: React.React
           reviewNote: note,
         } : s
       ),
-    });
+    };
+    if (sub) {
+      newData = resolveStreakBets(newData, sub.childId);
+    }
+    persist(newData);
   };
 
   const addGoal = (title: string, targetCents: number) => {
@@ -246,13 +362,54 @@ export function AppProvider({ children: reactChildren }: { children: React.React
 
   const closeCycle = (newEndDate: string) => {
     if (!appData.family) return;
-    persist({ ...appData, family: { ...appData.family, cycleStartDate: getTodayKey(), cycleEndDate: newEndDate } });
+    const lostBets = appData.streakBets.map(b =>
+      b.status === 'active' ? { ...b, status: 'lost' as StreakBetStatus, resolvedAt: new Date().toISOString() } : b
+    );
+    persist({ ...appData, streakBets: lostBets, family: { ...appData.family, cycleStartDate: getTodayKey(), cycleEndDate: newEndDate } });
   };
 
   const updateCycleEndDate = (newEndDate: string) => {
     if (!appData.family) return;
     persist({ ...appData, family: { ...appData.family, cycleEndDate: newEndDate } });
   };
+
+  const placeBet = (childId: string, durationDays: StreakBetDuration): boolean => {
+    if (!appData.family) return false;
+    const existing = appData.streakBets.find(b => b.childId === childId && b.status === 'active');
+    if (existing) return false;
+    const currentStreak = computeStreak(appData.submissions, childId);
+    const bet: StreakBet = {
+      id: generateId(),
+      childId,
+      familyId: appData.family.id,
+      durationDays,
+      startDate: getTodayKey(),
+      startStreak: currentStreak,
+      status: 'active',
+      bonusPercent: STREAK_BET_BONUS[durationDays],
+      bonusCentsAwarded: 0,
+    };
+    persist({ ...appData, streakBets: [...appData.streakBets, bet] });
+    return true;
+  };
+
+  useEffect(() => {
+    if (isLoading) return;
+    const hasActiveBets = appData.streakBets.some(b => b.status === 'active');
+    if (!hasActiveBets) return;
+    const resolved = resolveAllActiveStreakBets(appData);
+    if (resolved !== appData) {
+      persist(resolved);
+    }
+  }, [appData.submissions, isLoading]);
+
+  const getActiveBet = (childId: string): StreakBet | null =>
+    appData.streakBets.find(b => b.childId === childId && b.status === 'active') ?? null;
+
+  const getChildBetHistory = (childId: string): StreakBet[] =>
+    appData.streakBets
+      .filter(b => b.childId === childId && b.status !== 'active')
+      .sort((a, b) => new Date(b.resolvedAt ?? '').getTime() - new Date(a.resolvedAt ?? '').getTime());
 
   const getCurrentChild = (): Child | null =>
     appData.children.find(c => c.id === session.currentChildId) ?? null;
@@ -304,32 +461,20 @@ export function AppProvider({ children: reactChildren }: { children: React.React
       .reduce((sum, s) => sum + s.rewardCentsAwarded, 0);
   };
 
-  const getChildStreak = (childId: string): number => {
-    let streak = 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    for (let i = 0; i < 365; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const dateKey = d.toISOString().split('T')[0];
-      const hasApproved = appData.submissions.some(
-        s => s.childId === childId && s.submittedForDate === dateKey && (s.status === 'approved' || s.status === 'partial')
-      );
-      if (hasApproved) { streak++; }
-      else if (i > 0) { break; }
-    }
-    return streak;
-  };
+  const getChildStreak = (childId: string): number =>
+    computeStreak(appData.submissions, childId);
 
   const getChildXP = (childId: string): number =>
-    appData.submissions.filter(s => s.childId === childId && (s.status === 'approved' || s.status === 'partial')).length * 10;
+    appData.submissions.filter(
+      s => s.childId === childId && (s.status === 'approved' || s.status === 'partial') && s.taskId !== '__streak_bet_bonus__'
+    ).length * 10;
 
   const getChildLevel = (childId: string): number =>
     Math.floor(getChildXP(childId) / 50) + 1;
 
   const getPendingSubmissions = (): SubmissionWithTask[] =>
     appData.submissions
-      .filter(s => s.status === 'pending' || s.status === 'appealed')
+      .filter(s => (s.status === 'pending' || s.status === 'appealed') && s.taskId !== '__streak_bet_bonus__')
       .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
       .map(submission => ({
         submission,
@@ -358,12 +503,14 @@ export function AppProvider({ children: reactChildren }: { children: React.React
       tasks: appData.tasks,
       submissions: appData.submissions,
       goals: appData.goals,
+      streakBets: appData.streakBets,
       currentRole: session.currentRole,
       currentChildId: session.currentChildId,
       setupParent, loginAsParent, loginAsChild, logout, updateCycleEndDate,
       addTask, updateTask, toggleTask, deleteTask, isTaskClaimedForCycle,
       submitTask, reviewSubmission, submitAppeal, reviewAppeal,
       addGoal, deleteGoal, addChild, closeCycle,
+      placeBet, getActiveBet, getChildBetHistory,
       getCurrentChild, getTodaysMissions, getChildBalance, getChildStreak,
       getChildXP, getChildLevel, getPendingSubmissions, getCycleEndDate, getCycleDay,
     }}>

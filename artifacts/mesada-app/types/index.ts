@@ -104,3 +104,25 @@ export interface SetupData {
   childName: string;
   childNickname: string;
 }
+
+export type StreakBetStatus = 'active' | 'won' | 'lost';
+export type StreakBetDuration = 7 | 14 | 20;
+
+export interface StreakBet {
+  id: string;
+  childId: string;
+  familyId: string;
+  durationDays: StreakBetDuration;
+  startDate: string;
+  startStreak: number;
+  status: StreakBetStatus;
+  bonusPercent: number;
+  bonusCentsAwarded: number;
+  resolvedAt?: string;
+}
+
+export const STREAK_BET_BONUS: Record<StreakBetDuration, number> = {
+  7: 10,
+  14: 20,
+  20: 35,
+};

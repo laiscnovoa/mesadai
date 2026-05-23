@@ -12,6 +12,8 @@ import { useColors } from '@/hooks/useColors';
 import { GoalCard } from '@/components/GoalCard';
 import { XPBar } from '@/components/XPBar';
 import { StreakBadge } from '@/components/StreakBadge';
+import { BetModal } from '@/components/BetModal';
+import { ActiveBetCard } from '@/components/ActiveBetCard';
 import { formatCurrency, formatDate } from '@/types';
 
 export default function ProgressScreen() {
@@ -19,10 +21,12 @@ export default function ProgressScreen() {
     getCurrentChild, currentChildId, children, goals, submissions, tasks,
     getChildBalance, getChildStreak, getChildXP, getChildLevel,
     addGoal, deleteGoal, submitAppeal,
+    getActiveBet, getChildBetHistory,
   } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [showGoalModal, setShowGoalModal] = useState(false);
+  const [showBetModal, setShowBetModal] = useState(false);
   const [goalTitle, setGoalTitle] = useState('');
   const [goalAmount, setGoalAmount] = useState('');
 
@@ -33,9 +37,12 @@ export default function ProgressScreen() {
   const xp = getChildXP(childId);
   const level = getChildLevel(childId);
 
+  const activeBet = getActiveBet(childId);
+  const betHistory = getChildBetHistory(childId);
+
   const myGoals = goals.filter(g => g.childId === childId);
   const recentApproved = submissions
-    .filter(s => s.childId === childId && (s.status === 'approved' || s.status === 'partial'))
+    .filter(s => s.childId === childId && (s.status === 'approved' || s.status === 'partial') && s.taskId !== '__streak_bet_bonus__')
     .sort((a, b) => new Date(b.reviewedAt ?? b.submittedAt).getTime() - new Date(a.reviewedAt ?? a.submittedAt).getTime())
     .slice(0, 5);
 
@@ -72,15 +79,89 @@ export default function ProgressScreen() {
             <Text style={styles.balanceValue}>{formatCurrency(balance)}</Text>
           </View>
 
-          {/* Streak */}
+          {/* Streak + bet button */}
           <View style={styles.streakRow}>
             <StreakBadge streak={streak} large />
             {streak > 0 && <Text style={styles.streakMsg}>Você está em chama!</Text>}
+            <TouchableOpacity
+              style={[styles.betButton, activeBet ? styles.betButtonActive : styles.betButtonIdle]}
+              onPress={() => setShowBetModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name={activeBet ? 'trophy' : 'dice-outline'} size={15} color="#ffffff" />
+              <Text style={styles.betButtonText}>{activeBet ? 'Aposta ativa' : 'Fazer Aposta'}</Text>
+            </TouchableOpacity>
           </View>
         </LinearGradient>
 
         {/* XP Bar */}
         <XPBar xp={xp} level={level} />
+
+        {/* Active Bet Card */}
+        {activeBet && (
+          <>
+            <View style={[styles.sectionHeader, { paddingTop: 12 }]}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🎯 Aposta Ativa</Text>
+            </View>
+            <ActiveBetCard bet={activeBet} currentStreak={streak} currentBalance={balance} />
+          </>
+        )}
+
+        {/* Bet History */}
+        {betHistory.length > 0 && (
+          <>
+            <View style={[styles.sectionHeader, { paddingTop: activeBet ? 4 : 12 }]}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Histórico de Apostas</Text>
+            </View>
+            {betHistory.map(bet => {
+              const won = bet.status === 'won';
+              return (
+                <View
+                  key={bet.id}
+                  style={[
+                    styles.betHistItem,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: won ? colors.success : colors.rejected,
+                    },
+                  ]}
+                >
+                  <View style={[styles.betHistIcon, { backgroundColor: won ? '#F0FFF4' : '#FFF0F0' }]}>
+                    <Ionicons
+                      name={won ? 'trophy' : 'close-circle'}
+                      size={20}
+                      color={won ? colors.success : colors.destructive}
+                    />
+                  </View>
+                  <View style={styles.betHistInfo}>
+                    <Text style={[styles.betHistTitle, { color: colors.foreground }]}>
+                      {bet.durationDays} dias de streak
+                    </Text>
+                    <Text style={[styles.betHistDate, { color: colors.mutedForeground }]}>
+                      {won ? 'Concluído em' : 'Encerrado em'}{' '}
+                      {bet.resolvedAt ? formatDate(bet.resolvedAt.split('T')[0]) : '—'}
+                    </Text>
+                  </View>
+                  <View style={styles.betHistRight}>
+                    <Text style={[styles.betHistStatus, { color: won ? colors.success : colors.destructive }]}>
+                      {won ? 'Ganhou' : 'Perdeu'}
+                    </Text>
+                    {won && bet.bonusCentsAwarded > 0 && (
+                      <Text style={[styles.betHistBonus, { color: colors.success }]}>
+                        +{formatCurrency(bet.bonusCentsAwarded)}
+                      </Text>
+                    )}
+                    {!won && (
+                      <Text style={[styles.betHistBonus, { color: colors.mutedForeground }]}>
+                        +{bet.bonusPercent}% perdido
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </>
+        )}
 
         {/* Streaks da família */}
         {children.length > 1 && (
@@ -215,6 +296,9 @@ export default function ProgressScreen() {
         )}
       </ScrollView>
 
+      {/* Bet Modal */}
+      <BetModal visible={showBetModal} onClose={() => setShowBetModal(false)} childId={childId} />
+
       {/* Goal Modal */}
       <Modal visible={showGoalModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowGoalModal(false)}>
         <View style={[styles.modal, { backgroundColor: colors.background }]}>
@@ -260,11 +344,29 @@ const styles = StyleSheet.create({
   balanceCard: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 16, alignItems: 'center' },
   balanceLabel: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular' },
   balanceValue: { fontSize: 38, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold', marginTop: 4 },
-  streakRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  streakMsg: { fontSize: 14, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_500Medium' },
+  streakRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  streakMsg: { fontSize: 14, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_500Medium', flex: 1 },
+  betButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+  },
+  betButtonIdle: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  betButtonActive: { backgroundColor: '#F59E0B' },
+  betButtonText: { fontSize: 12, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   addGoalBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  betHistItem: {
+    flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 4,
+    padding: 12, borderRadius: 14, borderWidth: 1.5, gap: 12,
+  },
+  betHistIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  betHistInfo: { flex: 1 },
+  betHistTitle: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
+  betHistDate: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  betHistRight: { alignItems: 'flex-end', gap: 2 },
+  betHistStatus: { fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  betHistBonus: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   emptyCard: {
     marginHorizontal: 16, borderRadius: 14, padding: 24, borderWidth: 1,
     alignItems: 'center', gap: 8,

@@ -34,8 +34,8 @@ function fmtDateInput(raw: string): string {
 
 export default function CycleScreen() {
   const {
-    family, children, submissions,
-    getChildBalance, getCycleDay, getCycleEndDate,
+    family, children, submissions, streakBets,
+    getChildBalance, getChildStreak, getCycleDay, getCycleEndDate,
     closeCycle, addChild,
   } = useApp();
   const colors = useColors();
@@ -45,6 +45,7 @@ export default function CycleScreen() {
   const [newChildNickname, setNewChildNickname] = useState('');
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [newEndDateInput, setNewEndDateInput] = useState('');
+  const [showBetHistory, setShowBetHistory] = useState(false);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const cycleDay = getCycleDay();
@@ -57,6 +58,10 @@ export default function CycleScreen() {
     ? Math.max(0, Math.ceil((cycleEnd.getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)))
     : 0;
   const cycleProgress = totalDays > 0 ? Math.min(1, cycleDay / totalDays) : 0;
+
+  const activeBets = streakBets.filter(b => b.status === 'active');
+  const resolvedBets = streakBets.filter(b => b.status !== 'active')
+    .sort((a, b) => new Date(b.resolvedAt ?? '').getTime() - new Date(a.resolvedAt ?? '').getTime());
 
   const handleCloseCycle = () => {
     setNewEndDateInput('');
@@ -159,6 +164,109 @@ export default function CycleScreen() {
               </View>
             );
           })
+        )}
+
+        {/* Apostas Ativas */}
+        {children.length > 0 && (
+          <>
+            <View style={styles.betSectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🎯 Apostas Ativas</Text>
+              {activeBets.length === 0 && (
+                <Text style={[styles.betNone, { color: colors.mutedForeground }]}>Nenhuma aposta ativa</Text>
+              )}
+            </View>
+            {activeBets.map(bet => {
+              const child = children.find(c => c.id === bet.childId);
+              if (!child) return null;
+              const streak = getChildStreak(child.id);
+              const balance = getChildBalance(child.id);
+              const daysCompleted = Math.min(Math.max(0, streak - bet.startStreak), bet.durationDays);
+              const daysLeft = Math.max(0, bet.durationDays - daysCompleted);
+              const bonusEstimate = Math.round(balance * bet.bonusPercent / 100);
+              const progress = daysCompleted / bet.durationDays;
+              return (
+                <View key={bet.id} style={[styles.betCard, { backgroundColor: colors.card, borderColor: colors.streak }]}>
+                  <View style={styles.betCardTop}>
+                    <View style={[styles.betAvatar, { backgroundColor: colors.secondary }]}>
+                      <Text style={styles.betAvatarEmoji}>🐷</Text>
+                    </View>
+                    <View style={styles.betCardInfo}>
+                      <Text style={[styles.betChildName, { color: colors.foreground }]}>{child.name}</Text>
+                      <Text style={[styles.betMeta, { color: colors.mutedForeground }]}>
+                        {bet.durationDays} dias · +{bet.bonusPercent}% · 🔥 streak {streak}
+                      </Text>
+                    </View>
+                    <View style={styles.betCardRight}>
+                      <Text style={[styles.betBonus, { color: colors.success }]}>{formatCurrency(bonusEstimate)}</Text>
+                      <Text style={[styles.betDaysLeft, { color: colors.mutedForeground }]}>
+                        {daysLeft === 0 ? 'Concluído!' : `${daysLeft}d restantes`}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.betProgressBg, { backgroundColor: colors.muted }]}>
+                    <View style={[styles.betProgressFill, {
+                      width: `${Math.round(progress * 100)}%` as any,
+                      backgroundColor: colors.streak,
+                    }]} />
+                  </View>
+                  <Text style={[styles.betProgressLabel, { color: colors.mutedForeground }]}>
+                    {daysCompleted} / {bet.durationDays} dias
+                  </Text>
+                </View>
+              );
+            })}
+          </>
+        )}
+
+        {/* Histórico de apostas (colapsável) */}
+        {resolvedBets.length > 0 && (
+          <>
+            <TouchableOpacity
+              style={styles.betHistToggle}
+              onPress={() => setShowBetHistory(v => !v)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Histórico de Apostas</Text>
+              <Ionicons
+                name={showBetHistory ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={colors.mutedForeground}
+              />
+            </TouchableOpacity>
+            {showBetHistory && resolvedBets.map(bet => {
+              const child = children.find(c => c.id === bet.childId);
+              const won = bet.status === 'won';
+              return (
+                <View
+                  key={bet.id}
+                  style={[styles.resolvedBetCard, {
+                    backgroundColor: colors.card,
+                    borderColor: won ? colors.success : colors.rejected,
+                  }]}
+                >
+                  <View style={[styles.resolvedIcon, { backgroundColor: won ? '#F0FFF4' : '#FFF0F0' }]}>
+                    <Ionicons name={won ? 'trophy' : 'close-circle'} size={18} color={won ? colors.success : colors.destructive} />
+                  </View>
+                  <View style={styles.resolvedInfo}>
+                    <Text style={[styles.resolvedChild, { color: colors.foreground }]}>
+                      {child?.name ?? '—'} · {bet.durationDays} dias
+                    </Text>
+                    <Text style={[styles.resolvedDate, { color: colors.mutedForeground }]}>
+                      {bet.resolvedAt ? formatDate(bet.resolvedAt.split('T')[0]) : '—'}
+                    </Text>
+                  </View>
+                  <View style={styles.resolvedRight}>
+                    <Text style={[styles.resolvedStatus, { color: won ? colors.success : colors.destructive }]}>
+                      {won ? 'Ganhou' : 'Perdeu'}
+                    </Text>
+                    {won && bet.bonusCentsAwarded > 0 && (
+                      <Text style={[styles.resolvedBonus, { color: colors.success }]}>+{formatCurrency(bet.bonusCentsAwarded)}</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </>
         )}
 
         {/* Add child */}
@@ -299,6 +407,35 @@ const styles = StyleSheet.create({
   childStats: { alignItems: 'flex-end', gap: 2 },
   childBalance: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   childTasks: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  betSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  betNone: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  betCard: {
+    borderRadius: 16, borderWidth: 1.5, padding: 14, gap: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4,
+  },
+  betCardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  betAvatar: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  betAvatarEmoji: { fontSize: 20 },
+  betCardInfo: { flex: 1 },
+  betChildName: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
+  betMeta: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  betCardRight: { alignItems: 'flex-end', gap: 2 },
+  betBonus: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  betDaysLeft: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  betProgressBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  betProgressFill: { height: '100%', borderRadius: 4 },
+  betProgressLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', textAlign: 'right' },
+  betHistToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  resolvedBetCard: {
+    flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, borderWidth: 1.5, gap: 10,
+  },
+  resolvedIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  resolvedInfo: { flex: 1 },
+  resolvedChild: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
+  resolvedDate: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  resolvedRight: { alignItems: 'flex-end', gap: 2 },
+  resolvedStatus: { fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  resolvedBonus: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   addChildBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, padding: 14, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed',

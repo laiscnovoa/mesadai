@@ -1,0 +1,174 @@
+import React, { useState } from 'react';
+import {
+  View, Text, TouchableOpacity, StyleSheet, Modal, Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useApp } from '@/context/AppContext';
+import { useColors } from '@/hooks/useColors';
+import { StreakBetDuration, STREAK_BET_BONUS, formatCurrency } from '@/types';
+
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  childId: string;
+}
+
+const BET_OPTIONS: { days: StreakBetDuration; label: string; emoji: string }[] = [
+  { days: 7, label: '1 semana', emoji: '🌱' },
+  { days: 14, label: '2 semanas', emoji: '💪' },
+  { days: 20, label: '20 dias', emoji: '🏆' },
+];
+
+export function BetModal({ visible, onClose, childId }: Props) {
+  const { placeBet, getActiveBet, getChildBalance } = useApp();
+  const colors = useColors();
+  const [selected, setSelected] = useState<StreakBetDuration | null>(null);
+
+  const activeBet = getActiveBet(childId);
+  const balance = getChildBalance(childId);
+  const hasActiveBet = !!activeBet;
+
+  const handleConfirm = () => {
+    if (!selected) {
+      Alert.alert('Atenção', 'Escolha uma duração para a aposta.');
+      return;
+    }
+    const bonusPct = STREAK_BET_BONUS[selected];
+    const bonusEstimate = Math.round(balance * bonusPct / 100);
+    Alert.alert(
+      'Confirmar aposta',
+      `Apostar ${selected} dias de streak consecutivos?\n\nSe conseguir, você ganha +${bonusPct}% do seu saldo atual (≈ ${formatCurrency(bonusEstimate)}) como bônus!`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apostar!',
+          onPress: () => {
+            const ok = placeBet(childId, selected);
+            if (ok) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              setSelected(null);
+              onClose();
+            } else {
+              Alert.alert('Erro', 'Não foi possível criar a aposta.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <TouchableOpacity onPress={onClose}>
+            <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancelar</Text>
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: colors.foreground }]}>Fazer Aposta</Text>
+          <TouchableOpacity onPress={handleConfirm} disabled={hasActiveBet || !selected}>
+            <Text style={[styles.confirmText, { color: hasActiveBet || !selected ? colors.mutedForeground : colors.primary }]}>
+              Apostar!
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.content}>
+          <View style={styles.heroRow}>
+            <Text style={styles.heroEmoji}>🔥</Text>
+            <View style={styles.heroText}>
+              <Text style={[styles.heroTitle, { color: colors.foreground }]}>Aposte no seu streak!</Text>
+              <Text style={[styles.heroDesc, { color: colors.mutedForeground }]}>
+                Mantenha dias consecutivos e ganhe um bônus sobre seu saldo atual.
+              </Text>
+            </View>
+          </View>
+
+          {hasActiveBet && (
+            <View style={[styles.activeBanner, { backgroundColor: colors.warning + '20', borderColor: colors.warning }]}>
+              <Ionicons name="warning-outline" size={18} color={colors.warning} />
+              <Text style={[styles.activeBannerText, { color: colors.warning }]}>
+                Você já tem uma aposta ativa. Conclua ou perca antes de fazer nova aposta.
+              </Text>
+            </View>
+          )}
+
+          {BET_OPTIONS.map(opt => {
+            const bonusPct = STREAK_BET_BONUS[opt.days];
+            const bonusEstimate = Math.round(balance * bonusPct / 100);
+            const isSelected = selected === opt.days;
+            return (
+              <TouchableOpacity
+                key={opt.days}
+                style={[
+                  styles.optionCard,
+                  {
+                    backgroundColor: isSelected ? colors.primary + '15' : colors.card,
+                    borderColor: isSelected ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => !hasActiveBet && setSelected(opt.days)}
+                activeOpacity={hasActiveBet ? 1 : 0.7}
+                disabled={hasActiveBet}
+              >
+                <Text style={styles.optionEmoji}>{opt.emoji}</Text>
+                <View style={styles.optionInfo}>
+                  <Text style={[styles.optionDays, { color: colors.foreground }]}>{opt.days} dias</Text>
+                  <Text style={[styles.optionLabel, { color: colors.mutedForeground }]}>{opt.label}</Text>
+                </View>
+                <View style={styles.optionBonus}>
+                  <Text style={[styles.bonusPct, { color: colors.success }]}>+{bonusPct}%</Text>
+                  {balance > 0 && (
+                    <Text style={[styles.bonusEst, { color: colors.mutedForeground }]}>≈ {formatCurrency(bonusEstimate)}</Text>
+                  )}
+                </View>
+                {isSelected && (
+                  <Ionicons name="checkmark-circle" size={22} color={colors.primary} style={styles.checkIcon} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+
+          <Text style={[styles.disclaimer, { color: colors.mutedForeground }]}>
+            O bônus é calculado sobre o saldo do ciclo no momento da conclusão da aposta.
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 16, paddingTop: 20, borderBottomWidth: 1,
+  },
+  cancelText: { fontSize: 16, fontFamily: 'Inter_500Medium' },
+  title: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  confirmText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  content: { padding: 20, gap: 12 },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 4 },
+  heroEmoji: { fontSize: 40 },
+  heroText: { flex: 1 },
+  heroTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  heroDesc: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 2, lineHeight: 18 },
+  activeBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 12, borderRadius: 12, borderWidth: 1,
+  },
+  activeBannerText: { flex: 1, fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
+  optionCard: {
+    flexDirection: 'row', alignItems: 'center', padding: 16,
+    borderRadius: 16, borderWidth: 1.5, gap: 12,
+  },
+  optionEmoji: { fontSize: 28 },
+  optionInfo: { flex: 1 },
+  optionDays: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  optionLabel: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  optionBonus: { alignItems: 'flex-end', gap: 2 },
+  bonusPct: { fontSize: 18, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  bonusEst: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  checkIcon: { marginLeft: 4 },
+  disclaimer: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 16, marginTop: 4 },
+});
