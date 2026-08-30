@@ -39,10 +39,22 @@
       "expo-font",
       "expo-web-browser",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Use a câmera para escanear o código de pareamento."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Selecione fotos para comprovar tarefas.",
           "cameraPermission": "Tire fotos para comprovar tarefas."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#00C472"
         }
       ]
     ],

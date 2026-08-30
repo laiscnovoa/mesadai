@@ -1,0 +1,5 @@
+- [MesadAI architecture](mesada-architecture.md) — device-token auth, server-side compute/bet resolution, public-by-obscurity proof-photo storage via expo_object_storage.
+- [Contrato do código de pareamento](pairing-code-contract.md) — manter seis dígitos de ponta a ponta e testar explicitamente códigos com 0 ou 1.
+- [Expo build e porta do Canvas](expo-build-port-collision.md) — use expo export para validar bundles quando o build estático disputar a porta 8081.
+- [Recuperação do responsável por PIN](parent-recovery-secrets.md) — PIN de seis dígitos usa scrypt e busca HMAC única; credenciais nunca entram no snapshot.
+- [Migrações Drizzle no Replit](drizzle-migrations.md) — saída é relativa ao pacote; pós-merge migra dev e Publish aplica o diff em produção, sem DDL no startup.

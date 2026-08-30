@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Platform, Modal, TextInput, Alert,
+  TextInput, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,8 @@ import { XPBar } from '@/components/XPBar';
 import { StreakBadge } from '@/components/StreakBadge';
 import { BetModal } from '@/components/BetModal';
 import { ActiveBetCard } from '@/components/ActiveBetCard';
+import { AppSheet } from '@/components/AppSheet';
+import { bottomInset, cardShadow, layout, topInset } from '@/constants/layout';
 import { formatCurrency, formatDate } from '@/types';
 
 export default function ProgressScreen() {
@@ -75,14 +77,14 @@ export default function ProgressScreen() {
     setShowGoalModal(false);
   };
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
-  const botPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 100;
+  const topPad = topInset(insets.top);
+  const botPad = bottomInset(insets.bottom) + 100;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: botPad }]} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <LinearGradient colors={['#7C3AED', '#5B21B6']} style={[styles.headerGrad, { paddingTop: topPad + 12 }]}>
+        <LinearGradient colors={[colors.primary, colors.secondaryForeground]} style={[styles.headerGrad, { paddingTop: topPad + 12 }]}>
           <Text style={styles.headerTitle}>Meu Progresso</Text>
 
           {/* Balance */}
@@ -96,7 +98,10 @@ export default function ProgressScreen() {
             <StreakBadge streak={streak} large />
             {streak > 0 && <Text style={styles.streakMsg}>Você está em chama!</Text>}
             <TouchableOpacity
-              style={[styles.betButton, activeBet ? styles.betButtonActive : styles.betButtonIdle]}
+              style={[
+                styles.betButton,
+                { backgroundColor: activeBet ? colors.warning : 'rgba(255,255,255,0.25)' },
+              ]}
               onPress={() => setShowBetModal(true)}
               activeOpacity={0.8}
             >
@@ -138,7 +143,7 @@ export default function ProgressScreen() {
                     },
                   ]}
                 >
-                  <View style={[styles.betHistIcon, { backgroundColor: won ? '#F0FFF4' : '#FFF0F0' }]}>
+                  <View style={[styles.betHistIcon, { backgroundColor: won ? colors.successBackground : colors.destructiveBackground }]}>
                     <Ionicons
                       name={won ? 'trophy' : 'close-circle'}
                       size={20}
@@ -192,7 +197,7 @@ export default function ProgressScreen() {
                       {c.name}{isMe ? ' (eu)' : ''}
                     </Text>
                     <View style={styles.streakBadgeRow}>
-                      <Text style={[styles.streakCount, { color: s > 0 ? '#FF6B00' : colors.mutedForeground }]}>
+                      <Text style={[styles.streakCount, { color: s > 0 ? colors.streak : colors.mutedForeground }]}>
                         {s > 0 ? '🔥' : '💤'} {s} dia{s !== 1 ? 's' : ''}
                       </Text>
                     </View>
@@ -273,7 +278,7 @@ export default function ProgressScreen() {
               const task = tasks.find(t => t.id === sub.taskId);
               return (
                 <View key={sub.id} style={[styles.historyItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={[styles.histIcon, { backgroundColor: sub.status === 'approved' ? '#F0FFF4' : '#FFF8E1' }]}>
+                  <View style={[styles.histIcon, { backgroundColor: sub.status === 'approved' ? colors.successBackground : colors.rewardBackground }]}>
                     <Ionicons
                       name={sub.status === 'approved' ? 'checkmark-circle' : 'remove-circle'}
                       size={22}
@@ -299,19 +304,20 @@ export default function ProgressScreen() {
       {/* Bet Modal */}
       <BetModal visible={showBetModal} onClose={() => setShowBetModal(false)} childId={childId} />
 
-      {/* Appeal Modal */}
-      <Modal visible={showAppealModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowAppealModal(false)}>
-        <View style={[styles.modal, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setShowAppealModal(false)}>
-              <Text style={[styles.cancelText, { color: colors.destructive }]}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Recorrer</Text>
-            <TouchableOpacity onPress={handleSubmitAppeal}>
-              <Text style={[styles.saveText, { color: colors.xp }]}>Enviar</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.modalContent}>
+      {/* Appeal Sheet */}
+      <AppSheet
+        visible={showAppealModal}
+        title="Recorrer"
+        onClose={() => setShowAppealModal(false)}
+        actionLabel="Enviar"
+        actionColor={colors.xp}
+        onAction={handleSubmitAppeal}
+      >
+        <ScrollView
+          contentContainerStyle={styles.sheetContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
             <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Por que você merece uma nova avaliação?</Text>
             <TextInput
               style={[styles.textArea, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
@@ -324,23 +330,23 @@ export default function ProgressScreen() {
               autoFocus
               textAlignVertical="top"
             />
-          </View>
-        </View>
-      </Modal>
+        </ScrollView>
+      </AppSheet>
 
-      {/* Goal Modal */}
-      <Modal visible={showGoalModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowGoalModal(false)}>
-        <View style={[styles.modal, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setShowGoalModal(false)}>
-              <Text style={[styles.cancelText, { color: colors.destructive }]}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Nova Meta</Text>
-            <TouchableOpacity onPress={handleAddGoal}>
-              <Text style={[styles.saveText, { color: colors.primary }]}>Salvar</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.modalContent}>
+      {/* Goal Sheet */}
+      <AppSheet
+        visible={showGoalModal}
+        title="Nova Meta"
+        onClose={() => setShowGoalModal(false)}
+        actionLabel="Salvar"
+        actionColor={colors.primary}
+        onAction={handleAddGoal}
+      >
+        <ScrollView
+          contentContainerStyle={styles.sheetContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
             <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Nome da meta</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
@@ -358,9 +364,8 @@ export default function ProgressScreen() {
               onChangeText={setGoalAmount}
               keyboardType="decimal-pad"
             />
-          </View>
-        </View>
-      </Modal>
+        </ScrollView>
+      </AppSheet>
     </View>
   );
 }
@@ -368,7 +373,7 @@ export default function ProgressScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { gap: 0 },
-  headerGrad: { paddingHorizontal: 20, paddingBottom: 24, gap: 16 },
+  headerGrad: { paddingHorizontal: layout.spacing.headerHorizontal, paddingBottom: 24, gap: 16 },
   headerTitle: { fontSize: 22, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
   balanceCard: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 16, alignItems: 'center' },
   balanceLabel: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular' },
@@ -379,15 +384,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
   },
-  betButtonIdle: { backgroundColor: 'rgba(255,255,255,0.25)' },
-  betButtonActive: { backgroundColor: '#F59E0B' },
   betButtonText: { fontSize: 12, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: layout.spacing.screen, paddingVertical: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   addGoalBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   betHistItem: {
     flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 4,
-    padding: 12, borderRadius: 14, borderWidth: 1.5, gap: 12,
+    padding: 12, borderRadius: layout.radius.medium, borderWidth: 1.5, gap: 12, ...cardShadow,
   },
   betHistIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   betHistInfo: { flex: 1 },
@@ -397,13 +400,13 @@ const styles = StyleSheet.create({
   betHistStatus: { fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   betHistBonus: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   emptyCard: {
-    marginHorizontal: 16, borderRadius: 14, padding: 24, borderWidth: 1,
-    alignItems: 'center', gap: 8,
+    marginHorizontal: 16, borderRadius: layout.radius.card, padding: 24, borderWidth: 1,
+    alignItems: 'center', gap: 8, ...cardShadow,
   },
   emptyText: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   appealCard: {
     flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 5,
-    padding: 14, borderRadius: 14, borderWidth: 1.5, gap: 12,
+    padding: 14, borderRadius: layout.radius.medium, borderWidth: 1.5, gap: 12, ...cardShadow,
   },
   appealInfo: { flex: 1 },
   appealTask: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
@@ -412,29 +415,21 @@ const styles = StyleSheet.create({
   appealBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   historyItem: {
     flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 4,
-    padding: 12, borderRadius: 14, borderWidth: 1, gap: 12,
+    padding: 12, borderRadius: layout.radius.medium, borderWidth: 1, gap: 12, ...cardShadow,
   },
   histIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   histInfo: { flex: 1 },
   histTask: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   histDate: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   histReward: { fontSize: 14, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  modal: { flex: 1 },
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, paddingTop: 20, borderBottomWidth: 1,
-  },
-  cancelText: { fontSize: 16, fontFamily: 'Inter_500Medium' },
-  modalTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  saveText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  modalContent: { padding: 20, gap: 8 },
+  sheetContent: { padding: layout.spacing.headerHorizontal, gap: 8 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', marginTop: 8 },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: 'Inter_400Regular' },
   textArea: {
     borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
     fontSize: 15, fontFamily: 'Inter_400Regular', minHeight: 130,
   },
-  familyStreaksCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden', marginBottom: 4 },
+  familyStreaksCard: { borderRadius: layout.radius.card, borderWidth: 1, overflow: 'hidden', marginBottom: 4, ...cardShadow },
   siblingStreakRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10 },
   streakChildEmoji: { fontSize: 22 },
   streakChildName: { flex: 1, fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },

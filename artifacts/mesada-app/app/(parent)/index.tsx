@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Platform, RefreshControl, ActivityIndicator,
+  RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { SubmissionCard } from '@/components/SubmissionCard';
 import { formatDate, formatCurrency } from '@/types';
+import { bottomInset, topInset } from '@/constants/layout';
 
 export default function ParentDashboard() {
   const {
@@ -27,7 +28,7 @@ export default function ParentDashboard() {
   const pending = getPendingSubmissions();
   const cycleDay = getCycleDay();
   const cycleEnd = getCycleEndDate();
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+  const topPad = topInset(insets.top);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -39,8 +40,8 @@ export default function ParentDashboard() {
             <Text style={styles.headerFamily}>{family?.name}</Text>
           </View>
           <TouchableOpacity onPress={() => { logout(); router.replace('/welcome'); }} style={styles.logoutBtn} testID="parent-home-btn">
-            <Ionicons name="home" size={18} color="#ffffff" />
-            <Text style={styles.logoutText}>Início</Text>
+            <Ionicons name="log-out-outline" size={18} color="#ffffff" />
+            <Text style={styles.logoutText}>Sair</Text>
           </TouchableOpacity>
         </View>
 
@@ -88,7 +89,7 @@ export default function ParentDashboard() {
         keyExtractor={item => item.submission.id}
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 100 },
+          { paddingBottom: bottomInset(insets.bottom) + 100 },
         ]}
         ListHeaderComponent={
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>

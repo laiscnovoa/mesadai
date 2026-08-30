@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, Platform, TouchableOpacity,
+  View, Text, FlatList, StyleSheet, TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ import { TaskCard } from '@/components/TaskCard';
 import { StreakBadge } from '@/components/StreakBadge';
 import { Cofri, CofriState } from '@/components/Cofri';
 import { formatCurrency } from '@/types';
+import { bottomInset, topInset } from '@/constants/layout';
 
 function getCofriState(completed: number, total: number): CofriState {
   if (total === 0) return 'neutral';
@@ -23,7 +24,7 @@ function getCofriState(completed: number, total: number): CofriState {
 export default function ChildMissionsScreen() {
   const {
     getCurrentChild, getTodaysMissions, getChildStreak, getChildXP,
-    getChildLevel, getChildBalance, currentRole, currentChildId, logout, isLoading,
+    getChildLevel, getChildBalance, currentRole, currentChildId, isLoading,
   } = useApp();
   const router = useRouter();
   const colors = useColors();
@@ -45,7 +46,7 @@ export default function ChildMissionsScreen() {
   const progress = total > 0 ? completed / total : 0;
   const cofriState = getCofriState(completed, total);
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+  const topPad = topInset(insets.top);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -54,13 +55,13 @@ export default function ChildMissionsScreen() {
         keyExtractor={item => item.task.id}
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 100 },
+          { paddingBottom: bottomInset(insets.bottom) + 100 },
         ]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View>
             {/* Header */}
-            <LinearGradient colors={['#7C3AED', '#5B21B6']} style={[styles.header, { paddingTop: topPad + 12 }]}>
+            <LinearGradient colors={[colors.primary, '#00855B']} style={[styles.header, { paddingTop: topPad + 12 }]}>
               <View style={styles.headerRow}>
                 <View>
                   <Text style={styles.greeting}>Olá, {child?.name ?? 'Aventureiro'}!</Text>
@@ -68,10 +69,6 @@ export default function ChildMissionsScreen() {
                 </View>
                 <View style={styles.headerRight}>
                   <StreakBadge streak={streak} />
-                  <TouchableOpacity onPress={() => { logout(); router.replace('/welcome'); }} style={styles.logoutBtn} testID="child-home-btn">
-                    <Ionicons name="home" size={16} color="#ffffff" />
-                    <Text style={styles.logoutText}>Início</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -142,12 +139,6 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 22, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
   subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoutBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  logoutText: { color: '#ffffff', fontSize: 12, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   cofriContainer: { alignItems: 'center', paddingVertical: 4 },
   statsRow: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 12 },
   statItem: { flex: 1, alignItems: 'center', gap: 2 },

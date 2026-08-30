@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
+import { cardShadow, layout } from '@/constants/layout';
 import { StreakBet, formatCurrency, formatDate } from '@/types';
 
 interface Props {
@@ -13,13 +14,13 @@ interface Props {
 export function ActiveBetCard({ bet, currentStreak, currentBalance }: Props) {
   const colors = useColors();
   const daysCompleted = Math.min(Math.max(0, currentStreak - bet.startStreak), bet.durationDays);
-  const progress = daysCompleted / bet.durationDays;
+  const progress = bet.durationDays > 0 ? daysCompleted / bet.durationDays : 1;
   const progressPct = Math.round(progress * 100);
   const bonusCentsEstimate = Math.round(currentBalance * bet.bonusPercent / 100);
   const daysLeft = Math.max(0, bet.durationDays - daysCompleted);
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.streak }]}>
+    <View style={[styles.card, cardShadow, { backgroundColor: colors.card, borderColor: colors.streak }]}>
       <View style={styles.headerRow}>
         <View style={[styles.iconBox, { backgroundColor: colors.streak + '18' }]}>
           <Ionicons name="flame" size={22} color={colors.streak} />
@@ -30,7 +31,7 @@ export function ActiveBetCard({ bet, currentStreak, currentBalance }: Props) {
             {daysLeft === 0 ? 'Objetivo alcançado!' : `${daysLeft} dia${daysLeft !== 1 ? 's' : ''} restante${daysLeft !== 1 ? 's' : ''}`}
           </Text>
         </View>
-        <View style={[styles.bonusBadge, { backgroundColor: colors.success + '18' }]}>
+        <View style={[styles.bonusBadge, { backgroundColor: colors.successBackground }]}>
           <Text style={[styles.bonusBadgeText, { color: colors.success }]}>+{bet.bonusPercent}%</Text>
         </View>
       </View>
@@ -55,12 +56,12 @@ export function ActiveBetCard({ bet, currentStreak, currentBalance }: Props) {
           <Text style={[styles.footerLabel, { color: colors.mutedForeground }]}>Início</Text>
           <Text style={[styles.footerValue, { color: colors.foreground }]}>{formatDate(bet.startDate)}</Text>
         </View>
-        <View style={styles.footerDivider} />
+        <View style={[styles.footerDivider, { backgroundColor: colors.border }]} />
         <View style={styles.footerItem}>
           <Text style={[styles.footerLabel, { color: colors.mutedForeground }]}>Bônus potencial</Text>
           <Text style={[styles.footerValue, { color: colors.success }]}>{formatCurrency(bonusCentsEstimate)}</Text>
         </View>
-        <View style={styles.footerDivider} />
+        <View style={[styles.footerDivider, { backgroundColor: colors.border }]} />
         <View style={styles.footerItem}>
           <Text style={[styles.footerLabel, { color: colors.mutedForeground }]}>Streak atual</Text>
           <Text style={[styles.footerValue, { color: colors.streak }]}>🔥 {currentStreak}</Text>
@@ -72,16 +73,15 @@ export function ActiveBetCard({ bet, currentStreak, currentBalance }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 16, marginVertical: 6, borderRadius: 16,
+    marginHorizontal: layout.spacing.screen, marginVertical: 6, borderRadius: layout.radius.card,
     borderWidth: 1.5, padding: 16, gap: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 6,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBox: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  titleSection: { flex: 1 },
+  titleSection: { flex: 1, minWidth: 0 },
   title: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   subtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  bonusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  bonusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, flexShrink: 0 },
   bonusBadgeText: { fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   progressSection: { gap: 6 },
   progressBar: { height: 10, borderRadius: 5, overflow: 'hidden' },
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   progressLabel: { fontSize: 12, fontFamily: 'Inter_500Medium', textAlign: 'right' },
   footerRow: { flexDirection: 'row', alignItems: 'center' },
   footerItem: { flex: 1, alignItems: 'center', gap: 2 },
-  footerLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
-  footerValue: { fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  footerDivider: { width: 1, height: 32, backgroundColor: 'rgba(0,0,0,0.08)' },
+  footerLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  footerValue: { fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', textAlign: 'center' },
+  footerDivider: { width: 1, height: 32 },
 });

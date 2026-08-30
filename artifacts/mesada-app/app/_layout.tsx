@@ -24,6 +24,8 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="onboarding" />
+      <Stack.Screen name="welcome" />
       <Stack.Screen name="parent-login" />
       <Stack.Screen name="child-pairing" />
       <Stack.Screen name="(parent)" />

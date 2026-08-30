@@ -1,57 +1,100 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Alert, Platform, KeyboardAvoidingView, ScrollView,
+  Platform, ScrollView, ActivityIndicator, Linking,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { AppSheet } from '@/components/AppSheet';
+import { cardShadow, layout, topInset } from '@/constants/layout';
+
+function normalizePairingCode(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 6);
+}
 
 export default function ChildPairingScreen() {
-  const { loginAsChild, family } = useApp();
+  const { redeemPairingCode } = useApp();
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const [pin, setPin] = useState('');
-  const [nickname, setNickname] = useState('');
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const nicknameRef = useRef<TextInput>(null);
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scannerLocked, setScannerLocked] = useState(false);
 
-  const handleLogin = async () => {
-    if (pin.length !== 6) {
-      setError('O PIN deve ter 6 dígitos.');
-      return;
-    }
-    if (!nickname.trim()) {
-      setError('Digite seu apelido.');
+  const connectWithCode = async (value: string) => {
+    const normalized = normalizePairingCode(value);
+    if (normalized.length !== 6) {
+      setError('O código deve ter 6 números.');
       return;
     }
     setLoading(true);
     setError('');
-    await new Promise(r => setTimeout(r, 300));
-    const ok = loginAsChild(pin, nickname);
+    const ok = await redeemPairingCode(normalized);
     if (ok) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/(child)');
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError('PIN ou apelido incorretos. Verifique com seu responsável.');
+      setError('Código inválido ou expirado. Peça um novo ao seu responsável.');
     }
     setLoading(false);
   };
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+  const handleRedeem = async () => {
+    await connectWithCode(code);
+  };
+
+  const openScanner = async () => {
+    if (Platform.OS === 'web') {
+      setError('O leitor de QR Code funciona no aplicativo do celular. Digite o código nesta tela.');
+      return;
+    }
+    if (!permission?.granted) {
+      const nextPermission = await requestPermission();
+      if (!nextPermission.granted) {
+        setError(
+          nextPermission.canAskAgain
+            ? 'Permita o acesso à câmera para ler o QR Code.'
+            : 'A câmera está bloqueada. Libere o acesso nas configurações do Android.',
+        );
+        return;
+      }
+    }
+    setScannerLocked(false);
+    setScannerVisible(true);
+  };
+
+  const handleBarcodeScanned = ({ data }: BarcodeScanningResult) => {
+    if (scannerLocked || loading) return;
+    const scannedCode = normalizePairingCode(data);
+    if (scannedCode.length !== 6) {
+      setError('Esse QR Code não é um código de pareamento válido.');
+      return;
+    }
+    setScannerLocked(true);
+    setScannerVisible(false);
+    setCode(scannedCode);
+    void connectWithCode(scannedCode);
+  };
+
+  const topPad = topInset(insets.top);
 
   return (
-    <LinearGradient colors={['#7C3AED', '#5B21B6']} style={styles.container}>
+    <LinearGradient colors={[colors.primary, '#00855B']} style={styles.container}>
       <KeyboardAvoidingView
         style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
+        keyboardVerticalOffset={0}
       >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={[styles.topSection, { paddingTop: topPad + 20 }]}>
@@ -61,36 +104,44 @@ export default function ChildPairingScreen() {
             <View style={styles.logoBox}>
               <Ionicons name="star" size={48} color="#F6C90E" />
             </View>
-            <Text style={styles.title}>Entrar com PIN</Text>
-            <Text style={styles.subtitle}>Digite o PIN que seu responsável te passou</Text>
+            <Text style={styles.title}>Parear dispositivo</Text>
+            <Text style={styles.subtitle}>Escaneie o QR Code ou digite o código que seu responsável gerou</Text>
           </View>
 
-          <View style={[styles.card, { backgroundColor: colors.card }]}>
-            <Text style={[styles.label, { color: colors.foreground }]}>PIN (6 dígitos)</Text>
+          <View style={[styles.card, cardShadow, { backgroundColor: colors.card }]}>
+            <TouchableOpacity
+              testID="scan-pairing-btn"
+              style={[styles.scanBtn, { backgroundColor: colors.primary }]}
+              onPress={() => { void openScanner(); }}
+              activeOpacity={0.85}
+              disabled={loading}
+            >
+              <Ionicons name="qr-code-outline" size={22} color="#ffffff" />
+              <Text style={styles.scanBtnText}>Ler QR Code</Text>
+            </TouchableOpacity>
+            <View style={styles.orRow}>
+              <View style={[styles.orLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.orText, { color: colors.mutedForeground }]}>ou digite o código</Text>
+              <View style={[styles.orLine, { backgroundColor: colors.border }]} />
+            </View>
+            <Text style={[styles.label, { color: colors.foreground }]}>Código de 6 números</Text>
             <TextInput
-              style={[styles.pinInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: pin.length === 6 ? '#7C3AED' : colors.border }]}
-              placeholder="000000"
+              testID="pairing-code-input"
+              style={[styles.codeInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: code.length === 6 ? colors.primary : colors.border }]}
+              placeholder="123456"
               placeholderTextColor={colors.mutedForeground}
-              value={pin}
-              onChangeText={v => { setPin(v.replace(/\D/g, '').slice(0, 6)); setError(''); }}
-              keyboardType="number-pad"
+              value={code}
+              onChangeText={v => {
+                setCode(normalizePairingCode(v));
+                setError('');
+              }}
               maxLength={6}
-              returnKeyType="next"
-              onSubmitEditing={() => nicknameRef.current?.focus()}
-              textAlign="center"
-            />
-
-            <Text style={[styles.label, { color: colors.foreground }]}>Seu apelido</Text>
-            <TextInput
-              ref={nicknameRef}
-              style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
-              placeholder="Ex: joaozinho"
-              placeholderTextColor={colors.mutedForeground}
-              value={nickname}
-              onChangeText={v => { setNickname(v); setError(''); }}
-              autoCapitalize="none"
+              keyboardType="number-pad"
+              inputMode="numeric"
+              autoCorrect={false}
               returnKeyType="done"
-              onSubmitEditing={handleLogin}
+              onSubmitEditing={handleRedeem}
+              textAlign="center"
             />
 
             {error ? (
@@ -100,32 +151,63 @@ export default function ChildPairingScreen() {
               </View>
             ) : null}
 
-            {!family && (
-              <View style={[styles.warningBox, { backgroundColor: '#FFF8E1' }]}>
-                <Ionicons name="information-circle" size={16} color={colors.warning} />
-                <Text style={[styles.warningText, { color: colors.warning }]}>
-                  Nenhuma família encontrada. Peça ao responsável para criar a família primeiro.
-                </Text>
-              </View>
-            )}
-
             <TouchableOpacity
-              testID="child-login-btn"
-              style={[styles.loginBtn, { backgroundColor: '#7C3AED', opacity: loading ? 0.7 : 1 }]}
-              onPress={handleLogin}
+              testID="child-pair-btn"
+              style={[styles.loginBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
+              onPress={handleRedeem}
               activeOpacity={0.85}
-              disabled={loading || !family}
+              disabled={loading}
             >
-              <Text style={styles.loginBtnText}>Entrar</Text>
+              <Text style={styles.loginBtnText}>{loading ? 'Conectando...' : 'Conectar'}</Text>
               <Ionicons name="arrow-forward" size={20} color="#ffffff" />
             </TouchableOpacity>
           </View>
 
           <Text style={styles.hint}>
-            O PIN é fornecido pelo seu responsável no app.
+            O código é temporário, vale uma vez e expira após alguns minutos.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+      <AppSheet
+        visible={scannerVisible}
+        title="Ler QR Code"
+        onClose={() => setScannerVisible(false)}
+        fullScreen
+        closeButtonTestID="close-scanner-btn"
+      >
+        <View style={[styles.scannerModal, { backgroundColor: '#10131A' }]}>
+          {permission?.granted ? (
+            <View style={styles.cameraContainer}>
+              <CameraView
+                style={StyleSheet.absoluteFillObject}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                onBarcodeScanned={handleBarcodeScanned}
+              />
+              <View pointerEvents="none" style={styles.scannerOverlay}>
+                <View style={styles.scanFrame} />
+                <Text style={styles.scannerHint}>Aponte para o QR Code mostrado pelo responsável</Text>
+              </View>
+            </View>
+          ) : permission?.canAskAgain === false ? (
+            <View style={styles.permissionState}>
+              <Ionicons name="camera-outline" size={42} color="#ffffff" />
+              <Text style={styles.scannerHint}>Libere o acesso à câmera nas configurações do celular.</Text>
+              <TouchableOpacity
+                style={[styles.settingsBtn, { backgroundColor: colors.primary }]}
+                onPress={() => { void Linking.openSettings(); }}
+              >
+                <Text style={styles.settingsBtnText}>Abrir configurações</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.permissionState}>
+              <ActivityIndicator color="#ffffff" />
+              <Text style={styles.scannerHint}>Solicitando acesso à câmera...</Text>
+            </View>
+          )}
+        </View>
+      </AppSheet>
     </LinearGradient>
   );
 }
@@ -142,25 +224,32 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 28, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
   subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  card: { marginHorizontal: 20, borderRadius: 24, padding: 24, gap: 10 },
+  card: { marginHorizontal: 20, borderRadius: layout.radius.sheet, padding: 24, gap: 10 },
   label: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
-  pinInput: {
+  scanBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 16, paddingVertical: 16 },
+  scanBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
+  orLine: { flex: 1, height: 1 },
+  orText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  codeInput: {
     borderWidth: 2, borderRadius: 14, paddingVertical: 16,
     fontSize: 28, fontWeight: '700' as const, fontFamily: 'Inter_700Bold',
     letterSpacing: 8,
   },
-  input: {
-    borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
-    fontSize: 16, fontFamily: 'Inter_400Regular',
-  },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12 },
   errorText: { fontSize: 13, flex: 1, fontFamily: 'Inter_400Regular' },
-  warningBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12 },
-  warningText: { fontSize: 13, flex: 1, fontFamily: 'Inter_400Regular' },
   loginBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 10, borderRadius: 16, paddingVertical: 16, marginTop: 8,
   },
   loginBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
   hint: { color: 'rgba(255,255,255,0.6)', fontSize: 13, textAlign: 'center', marginTop: 24, paddingHorizontal: 32, fontFamily: 'Inter_400Regular' },
+  scannerModal: { flex: 1 },
+  cameraContainer: { flex: 1, overflow: 'hidden' },
+  scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  scanFrame: { width: 250, height: 250, borderWidth: 3, borderColor: '#ffffff', borderRadius: 24, backgroundColor: 'transparent' },
+  scannerHint: { color: 'rgba(255,255,255,0.9)', fontSize: 15, textAlign: 'center', fontFamily: 'Inter_500Medium', marginTop: 26 },
+  permissionState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  settingsBtn: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 16 },
+  settingsBtnText: { color: '#ffffff', fontSize: 15, fontFamily: 'Inter_700Bold' },
 });

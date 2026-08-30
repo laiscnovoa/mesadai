@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Platform,
-  Image, ScrollView, TextInput, Modal, Alert, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet,
+  ScrollView, TextInput, Alert, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { AppSheet } from '@/components/AppSheet';
+import { ProofPhoto } from '@/components/ProofPhoto';
+import { bottomInset, cardShadow, layout, topInset } from '@/constants/layout';
 import { formatCurrency, formatDate } from '@/types';
 
 export default function ReviewSubmissionScreen() {
@@ -32,21 +35,25 @@ export default function ReviewSubmissionScreen() {
   const isResolved = submission?.status === 'approved' || submission?.status === 'partial' ||
     submission?.status === 'rejected' || submission?.status === 'appeal_rejected';
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
-  const botPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
+  const topPad = topInset(insets.top);
+  const botPad = bottomInset(insets.bottom);
 
   const handleApprove = async () => {
     if (!submissionId || !task) return;
     setLoading(true);
-    await new Promise(r => setTimeout(r, 300));
-    if (isAppeal) {
-      reviewAppeal(submissionId, true);
-    } else {
-      reviewSubmission(submissionId, 'approved', task.rewardCents);
+    try {
+      if (isAppeal) {
+        await reviewAppeal(submissionId, true);
+      } else {
+        await reviewSubmission(submissionId, 'approved', task.rewardCents);
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch {
+      // error already surfaced by context
+    } finally {
+      setLoading(false);
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setLoading(false);
-    router.back();
   };
 
   const handlePartialApprove = async () => {
@@ -54,27 +61,35 @@ export default function ReviewSubmissionScreen() {
     const amount = Math.round(parseFloat(partialAmount.replace(',', '.')) * 100);
     if (isNaN(amount) || amount <= 0) { Alert.alert('Atenção', 'Digite um valor válido.'); return; }
     setLoading(true);
-    await new Promise(r => setTimeout(r, 300));
-    reviewSubmission(submissionId, 'partial', amount);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setLoading(false);
-    setShowPartialModal(false);
-    router.back();
+    try {
+      await reviewSubmission(submissionId, 'partial', amount);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowPartialModal(false);
+      router.back();
+    } catch {
+      // error already surfaced by context
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleReject = async () => {
     if (!submissionId) return;
     setLoading(true);
-    await new Promise(r => setTimeout(r, 300));
-    if (isAppeal) {
-      reviewAppeal(submissionId, false, rejectNote);
-    } else {
-      reviewSubmission(submissionId, 'rejected', 0, rejectNote);
+    try {
+      if (isAppeal) {
+        await reviewAppeal(submissionId, false, rejectNote);
+      } else {
+        await reviewSubmission(submissionId, 'rejected', 0, rejectNote);
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setShowRejectModal(false);
+      router.back();
+    } catch {
+      // error already surfaced by context
+    } finally {
+      setLoading(false);
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    setLoading(false);
-    setShowRejectModal(false);
-    router.back();
   };
 
   if (!submission || !task || !child) {
@@ -99,14 +114,13 @@ export default function ReviewSubmissionScreen() {
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: botPad + 120 }]}>
         {/* Photo */}
-        {submission.photoUri ? (
-          <Image source={{ uri: submission.photoUri }} style={styles.photo} resizeMode="cover" />
-        ) : (
-          <View style={[styles.photoPlaceholder, { backgroundColor: colors.muted }]}>
-            <Ionicons name="image-outline" size={48} color={colors.mutedForeground} />
-            <Text style={[styles.noPhotoText, { color: colors.mutedForeground }]}>Sem foto</Text>
-          </View>
-        )}
+        <ProofPhoto
+          uri={submission.photoUri}
+          style={styles.photo}
+          accessibilityLabel="Foto de comprovação da tarefa"
+          emptyLabel={submission.photoUri ? 'Não foi possível carregar a foto' : 'Sem foto'}
+          iconSize={48}
+        />
 
         {/* Info card */}
         <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -129,7 +143,7 @@ export default function ReviewSubmissionScreen() {
           </View>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.infoRow}>
-            <Ionicons name="cash" size={18} color="#F6C90E" />
+            <Ionicons name="cash" size={18} color={colors.accent} />
             <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Valor</Text>
             <Text style={[styles.infoValue, { color: colors.primary }]}>{formatCurrency(task.rewardCents)}</Text>
           </View>
@@ -137,7 +151,7 @@ export default function ReviewSubmissionScreen() {
 
         {/* Appeal info */}
         {isAppeal && submission.appealText && (
-          <View style={[styles.appealCard, { backgroundColor: '#F5F3FF', borderColor: colors.xp }]}>
+          <View style={[styles.appealCard, { backgroundColor: colors.muted, borderColor: colors.xp }]}>
             <View style={styles.appealHeader}>
               <Ionicons name="alert-circle" size={18} color={colors.xp} />
               <Text style={[styles.appealTitle, { color: colors.xp }]}>Recurso do(a) adolescente</Text>
@@ -156,7 +170,7 @@ export default function ReviewSubmissionScreen() {
 
         {/* Already resolved */}
         {isResolved && !isAppeal && (
-          <View style={[styles.resolvedBadge, { backgroundColor: colors.success + '20' }]}>
+          <View style={[styles.resolvedBadge, { backgroundColor: colors.successBackground }]}>
             <Ionicons name="checkmark-circle" size={20} color={colors.success} />
             <Text style={[styles.resolvedText, { color: colors.success }]}>Esta tarefa já foi avaliada.</Text>
           </View>
@@ -178,7 +192,7 @@ export default function ReviewSubmissionScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.rejectBtn, { backgroundColor: colors.destructive + '18', borderColor: colors.destructive }]}
+              style={[styles.rejectBtn, { backgroundColor: colors.destructiveBackground, borderColor: colors.destructive }]}
             onPress={() => setShowRejectModal(true)}
             activeOpacity={0.8}
           >
@@ -202,19 +216,21 @@ export default function ReviewSubmissionScreen() {
         </View>
       )}
 
-      {/* Reject Modal */}
-      <Modal visible={showRejectModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowRejectModal(false)}>
-        <View style={[styles.modal, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setShowRejectModal(false)}>
-              <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Reprovar</Text>
-            <TouchableOpacity onPress={handleReject} disabled={loading}>
-              <Text style={[styles.confirmText, { color: colors.destructive }]}>Confirmar</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.modalContent}>
+      {/* Reject Sheet */}
+      <AppSheet
+        visible={showRejectModal}
+        title="Reprovar"
+        onClose={() => setShowRejectModal(false)}
+        actionLabel="Confirmar"
+        actionColor={colors.destructive}
+        actionDisabled={loading}
+        onAction={handleReject}
+      >
+        <ScrollView
+          contentContainerStyle={styles.sheetContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
             <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Motivo (opcional)</Text>
             <TextInput
               style={[styles.textArea, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
@@ -225,23 +241,24 @@ export default function ReviewSubmissionScreen() {
               multiline
               numberOfLines={4}
             />
-          </View>
-        </View>
-      </Modal>
+        </ScrollView>
+      </AppSheet>
 
-      {/* Partial Modal */}
-      <Modal visible={showPartialModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowPartialModal(false)}>
-        <View style={[styles.modal, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setShowPartialModal(false)}>
-              <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Aprovação Parcial</Text>
-            <TouchableOpacity onPress={handlePartialApprove} disabled={loading}>
-              <Text style={[styles.confirmText, { color: colors.warning }]}>Aprovar</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.modalContent}>
+      {/* Partial Sheet */}
+      <AppSheet
+        visible={showPartialModal}
+        title="Aprovação Parcial"
+        onClose={() => setShowPartialModal(false)}
+        actionLabel="Aprovar"
+        actionColor={colors.warning}
+        actionDisabled={loading}
+        onAction={handlePartialApprove}
+      >
+        <ScrollView
+          contentContainerStyle={styles.sheetContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
             <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Valor a pagar (R$)</Text>
             <Text style={[styles.fieldHint, { color: colors.mutedForeground }]}>
               Valor total: {formatCurrency(task.rewardCents)}
@@ -255,9 +272,8 @@ export default function ReviewSubmissionScreen() {
               keyboardType="decimal-pad"
               autoFocus
             />
-          </View>
-        </View>
-      </Modal>
+        </ScrollView>
+      </AppSheet>
     </View>
   );
 }
@@ -265,30 +281,28 @@ export default function ReviewSubmissionScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12,
-    paddingBottom: 14, borderBottomWidth: 1, gap: 8,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: layout.spacing.screen,
+    paddingBottom: layout.spacing.headerBottom, borderBottomWidth: 1, gap: 8,
   },
   backBtn: { padding: 8 },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   content: { gap: 12 },
   photo: { width: '100%', height: 300 },
-  photoPlaceholder: { height: 200, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  noPhotoText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  infoCard: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  infoCard: { marginHorizontal: 16, borderRadius: layout.radius.card, borderWidth: 1, overflow: 'hidden', ...cardShadow },
   infoRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 10 },
   infoLabel: { fontSize: 13, fontFamily: 'Inter_400Regular', width: 52 },
   infoValue: { flex: 1, fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', textAlign: 'right' },
   divider: { height: 1, marginHorizontal: 14 },
-  appealCard: { marginHorizontal: 16, borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 8 },
+  appealCard: { marginHorizontal: 16, borderRadius: layout.radius.medium, borderWidth: 1.5, padding: 14, gap: 8, ...cardShadow },
   appealHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   appealTitle: { fontSize: 14, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   appealText: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 20 },
-  noteCard: { marginHorizontal: 16, borderRadius: 12, padding: 14, gap: 4 },
+  noteCard: { marginHorizontal: 16, borderRadius: layout.radius.medium, padding: 14, gap: 4, ...cardShadow },
   noteLabel: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   noteText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
   resolvedBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16,
-    padding: 14, borderRadius: 14,
+    padding: 14, borderRadius: layout.radius.medium,
   },
   resolvedText: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   actions: {
@@ -310,15 +324,7 @@ const styles = StyleSheet.create({
     gap: 6, paddingVertical: 14, borderRadius: 14,
   },
   approveText: { fontSize: 15, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
-  modal: { flex: 1 },
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, paddingTop: 20, borderBottomWidth: 1,
-  },
-  cancelText: { fontSize: 16, fontFamily: 'Inter_500Medium' },
-  modalTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  confirmText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  modalContent: { padding: 20, gap: 8 },
+  sheetContent: { padding: layout.spacing.headerHorizontal, gap: 8 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   fieldHint: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   textArea: {

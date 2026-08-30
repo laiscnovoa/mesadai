@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
+import { bottomInset, layout, topInset } from '@/constants/layout';
 
 function parseDateBR(value: string): string | null {
   const clean = value.replace(/\D/g, '');
@@ -34,7 +34,7 @@ function formatDateInput(raw: string): string {
 }
 
 export default function ParentLoginScreen() {
-  const { family, loginAsParent, setupParent } = useApp();
+  const { setupParent, recoverParent } = useApp();
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -47,27 +47,8 @@ export default function ParentLoginScreen() {
   const [childName, setChildName] = useState('');
   const [childNickname, setChildNickname] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Login state (existing family)
-  const [loginPin, setLoginPin] = useState('');
-  const [loginError, setLoginError] = useState('');
-
-  const handleExistingLogin = () => {
-    if (loginPin.length < 4) {
-      setLoginError('Digite o PIN de 4 dígitos.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-    const ok = loginAsParent(loginPin);
-    if (ok) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(parent)');
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setLoginError('PIN incorreto. Tente novamente.');
-      setLoginPin('');
-    }
-  };
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryPin, setRecoveryPin] = useState('');
 
   const nextStep = () => {
     if (step === 1 && (!familyName.trim() || !parentName.trim())) {
@@ -82,8 +63,8 @@ export default function ParentLoginScreen() {
       }
     }
     if (step === 3) {
-      if (parentPin.length !== 4) {
-        Alert.alert('Atenção', 'O PIN do responsável deve ter 4 dígitos.');
+      if (parentPin.length !== 6) {
+        Alert.alert('Atenção', 'O PIN do responsável deve ter 6 dígitos.');
         return;
       }
       if (parentPin !== parentPinConfirm) {
@@ -108,7 +89,7 @@ export default function ParentLoginScreen() {
       Alert.alert('Data inválida', 'Volte e informe uma data futura válida.');
       return;
     }
-    if (parentPin.length !== 4) {
+    if (parentPin.length !== 6) {
       Alert.alert('Atenção', 'Volte e defina o PIN do responsável.');
       return;
     }
@@ -116,102 +97,87 @@ export default function ParentLoginScreen() {
     try {
       await setupParent({ familyName, parentName, parentPin, cycleEndDate, childName, childNickname });
       router.replace('/(parent)');
+    } catch (error) {
+      if ((error as { status?: number }).status === 409) {
+        Alert.alert('Escolha outro PIN', 'Este PIN já está em uso por outra família. Volte e escolha outro PIN de 6 dígitos.');
+      } else {
+        Alert.alert('Não foi possível criar a família', 'Verifique sua conexão e tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
-  const botPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 24;
+  const handleRecovery = async () => {
+    if (recoveryPin.length !== 6) {
+      Alert.alert('Confira o PIN', 'Digite o PIN de 6 dígitos do responsável.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const ok = await recoverParent(recoveryPin);
+      if (ok) {
+        router.replace('/(parent)');
+      } else {
+        Alert.alert('Não foi possível recuperar', 'PIN inválido ou acesso temporariamente indisponível.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // === Existing family: PIN entry ===
-  if (family) {
+  const topPad = topInset(insets.top);
+  const botPad = bottomInset(insets.bottom) + 24;
+
+  if (recoveryMode) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad }]}>
-          <TouchableOpacity onPress={() => router.replace('/welcome')} style={styles.backBtn}>
-            <Ionicons name="home" size={22} color={colors.foreground} />
+          <TouchableOpacity onPress={() => setRecoveryMode(false)} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={22} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Entrar como Responsável</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Recuperar acesso</Text>
         </View>
-
-        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad }]} keyboardShouldPersistTaps="handled">
-          <View style={[styles.familyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.familyIcon, { backgroundColor: colors.secondary }]}>
-              <Text style={styles.familyEmoji}>🏠</Text>
-            </View>
-            <Text style={[styles.familyName, { color: colors.foreground }]}>{family.name}</Text>
-            <Text style={[styles.familySub, { color: colors.mutedForeground }]}>Olá, {family.parentName}!</Text>
-          </View>
-
-          <View style={[styles.loginCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.lockRow}>
-              <Ionicons name="lock-closed" size={18} color={colors.primary} />
-              <Text style={[styles.loginLabel, { color: colors.foreground }]}>Digite seu PIN (4 dígitos)</Text>
-            </View>
-
+        <KeyboardAwareScrollViewCompat
+          contentContainerStyle={[styles.content, { paddingBottom: botPad }]}
+          keyboardShouldPersistTaps="handled"
+          bottomOffset={24}
+        >
+          <View style={styles.stepContent}>
+            <Text style={styles.stepEmoji}>🔑</Text>
+            <Text style={[styles.stepTitle, { color: colors.foreground }]}>Voltar para sua família</Text>
+            <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
+              Digite o PIN de seis dígitos criado pelo responsável.
+            </Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>PIN do responsável</Text>
             <TextInput
-              testID="parent-pin-input"
-              style={[styles.pinInput, {
-                backgroundColor: colors.muted,
-                color: colors.foreground,
-                borderColor: loginPin.length === 4 ? colors.primary : colors.border,
-              }]}
-              placeholder="••••"
+              testID="parent-recovery-pin-input"
+              style={[styles.pinSetupInput, { backgroundColor: colors.card, borderColor: recoveryPin.length === 6 ? colors.primary : colors.border, color: colors.foreground }]}
+              placeholder="••••••"
               placeholderTextColor={colors.mutedForeground}
-              value={loginPin}
-              onChangeText={v => { setLoginPin(v.replace(/\D/g, '').slice(0, 4)); setLoginError(''); }}
+              value={recoveryPin}
+              onChangeText={v => setRecoveryPin(v.replace(/\D/g, '').slice(0, 6))}
               keyboardType="number-pad"
-              maxLength={4}
+              maxLength={6}
               secureTextEntry
               textAlign="center"
-              returnKeyType="done"
-              onSubmitEditing={handleExistingLogin}
-              autoFocus
             />
-
-            {loginError ? (
-              <View style={[styles.errorBox, { backgroundColor: '#FFF5F5' }]}>
-                <Ionicons name="alert-circle" size={16} color={colors.destructive} />
-                <Text style={[styles.errorText, { color: colors.destructive }]}>{loginError}</Text>
-              </View>
-            ) : (
-              <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
-                Esse PIN protege seus dados do adolescente.
-              </Text>
-            )}
-
             <TouchableOpacity
-              testID="login-parent-btn"
-              style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-              onPress={handleExistingLogin}
+              testID="recover-parent-btn"
+              style={[styles.primaryBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
+              onPress={handleRecovery}
               activeOpacity={0.85}
+              disabled={loading}
             >
-              <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Entrar</Text>
-              <Ionicons name="arrow-forward" size={20} color={colors.primaryForeground} />
+              {loading ? <ActivityIndicator color={colors.primaryForeground} size="small" /> : (
+                <>
+                  <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Recuperar acesso</Text>
+                  <Ionicons name="arrow-forward" size={20} color={colors.primaryForeground} />
+                </>
+              )}
             </TouchableOpacity>
           </View>
-
-          {/* Child PIN reference - only displayed AFTER successful login? No, we keep it discoverable here for sharing */}
-          <TouchableOpacity
-            style={[styles.childPinHint, { backgroundColor: colors.muted, borderColor: colors.border }]}
-            onPress={async () => {
-              await Clipboard.setStringAsync(family.pin);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('PIN do adolescente copiado!', 'Compartilhe com seu(ua) filho(a).');
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="key-outline" size={16} color={colors.mutedForeground} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.childPinLabel, { color: colors.mutedForeground }]}>
-                PIN do adolescente (para compartilhar)
-              </Text>
-              <Text style={[styles.childPinValue, { color: colors.foreground }]}>{family.pin}</Text>
-            </View>
-            <Ionicons name="copy-outline" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </ScrollView>
+        </KeyboardAwareScrollViewCompat>
       </View>
     );
   }
@@ -233,7 +199,11 @@ export default function ParentLoginScreen() {
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: botPad }]} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollViewCompat
+        contentContainerStyle={[styles.content, { paddingBottom: botPad }]}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={24}
+      >
         {step === 1 && (
           <View style={styles.stepContent}>
             <Text style={styles.stepEmoji}>🏠</Text>
@@ -258,6 +228,14 @@ export default function ParentLoginScreen() {
             <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={nextStep} activeOpacity={0.85}>
               <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Próximo</Text>
               <Ionicons name="arrow-forward" size={20} color={colors.primaryForeground} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="open-parent-recovery-btn"
+              style={styles.linkBtn}
+              onPress={() => setRecoveryMode(true)}
+            >
+              <Ionicons name="key-outline" size={18} color={colors.primary} />
+              <Text style={[styles.linkBtnText, { color: colors.primary }]}>Já tenho uma família — recuperar acesso</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -297,21 +275,21 @@ export default function ParentLoginScreen() {
             <Text style={styles.stepEmoji}>🔐</Text>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>Crie seu PIN</Text>
             <Text style={[styles.stepSub, { color: colors.mutedForeground }]}>
-              Um PIN de 4 dígitos para você (responsável) entrar. Não compartilhe com o(a) adolescente.
+              Um PIN de 6 dígitos para você (responsável) entrar. Não compartilhe com o(a) adolescente.
             </Text>
-            <Text style={[styles.label, { color: colors.foreground }]}>Seu PIN (4 dígitos)</Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Seu PIN (6 dígitos)</Text>
             <TextInput
               style={[styles.pinSetupInput, {
                 backgroundColor: colors.card,
                 color: colors.foreground,
-                borderColor: parentPin.length === 4 ? colors.primary : colors.border,
+                borderColor: parentPin.length === 6 ? colors.primary : colors.border,
               }]}
               placeholder="••••"
               placeholderTextColor={colors.mutedForeground}
               value={parentPin}
-              onChangeText={v => setParentPin(v.replace(/\D/g, '').slice(0, 4))}
+              onChangeText={v => setParentPin(v.replace(/\D/g, '').slice(0, 6))}
               keyboardType="number-pad"
-              maxLength={4}
+              maxLength={6}
               secureTextEntry
               textAlign="center"
             />
@@ -320,14 +298,14 @@ export default function ParentLoginScreen() {
               style={[styles.pinSetupInput, {
                 backgroundColor: colors.card,
                 color: colors.foreground,
-                borderColor: parentPinConfirm.length === 4 && parentPinConfirm === parentPin ? colors.primary : colors.border,
+                borderColor: parentPinConfirm.length === 6 && parentPinConfirm === parentPin ? colors.primary : colors.border,
               }]}
               placeholder="••••"
               placeholderTextColor={colors.mutedForeground}
               value={parentPinConfirm}
-              onChangeText={v => setParentPinConfirm(v.replace(/\D/g, '').slice(0, 4))}
+              onChangeText={v => setParentPinConfirm(v.replace(/\D/g, '').slice(0, 6))}
               keyboardType="number-pad"
-              maxLength={4}
+              maxLength={6}
               secureTextEntry
               textAlign="center"
             />
@@ -382,7 +360,8 @@ export default function ParentLoginScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
+
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
@@ -401,9 +380,9 @@ const styles = StyleSheet.create({
   stepTitle: { fontSize: 24, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', textAlign: 'center' },
   stepSub: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', marginBottom: 8 },
   label: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', marginTop: 4 },
-  input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: 'Inter_400Regular' },
+  input: { borderWidth: 1, borderRadius: layout.radius.medium, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: 'Inter_400Regular' },
   pinSetupInput: {
-    borderWidth: 2, borderRadius: 14, paddingVertical: 16,
+    borderWidth: 2, borderRadius: layout.radius.medium, paddingVertical: 16,
     fontSize: 28, fontWeight: '700' as const, fontFamily: 'Inter_700Bold',
     letterSpacing: 12,
   },
@@ -411,9 +390,11 @@ const styles = StyleSheet.create({
   dateHintText: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular' },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, borderRadius: 16, paddingVertical: 16, marginTop: 8,
+    gap: 10, borderRadius: layout.radius.card, paddingVertical: 16, marginTop: 8,
   },
   primaryBtnText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  linkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12 },
+  linkBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', textAlign: 'center' },
   scrollContent: { paddingHorizontal: 24, gap: 16 },
   familyCard: { borderRadius: 20, padding: 24, alignItems: 'center', gap: 8, borderWidth: 1 },
   familyIcon: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

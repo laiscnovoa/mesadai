@@ -10,6 +10,18 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Family creation and device pairing
+  - name: family
+    description: Family snapshot and cycle
+  - name: tasks
+    description: Task management
+  - name: submissions
+    description: Task submissions and reviews
+  - name: goals
+    description: Savings goals
+  - name: bets
+    description: Streak bets
 paths:
   /healthz:
     get:
@@ -24,7 +36,428 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /families:
+    post:
+      operationId: createFamily
+      tags: [auth]
+      summary: Create a family and register the parent device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FamilySetupInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyCreationResult"
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /pairing-codes:
+    post:
+      operationId: createPairingCode
+      tags: [auth]
+      summary: Generate a pairing code for a child (parent only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PairingCodeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PairingCode"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /pairing/redeem:
+    post:
+      operationId: redeemPairing
+      tags: [auth]
+      summary: Redeem a pairing code to register a child device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PairingRedeemInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /parent/recover:
+    post:
+      operationId: recoverParent
+      tags: [auth]
+      summary: Register a new parent device using the unique parent PIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentRecoveryInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "400":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+
+  /devices/push-token:
+    post:
+      operationId: registerPushToken
+      tags: [auth]
+      summary: Register or update the push token for the authenticated device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTokenInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResult"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /snapshot:
+    get:
+      operationId: getSnapshot
+      tags: [family]
+      summary: Get the full family snapshot for the authenticated device
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilySnapshot"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /children:
+    post:
+      operationId: addChild
+      tags: [family]
+      summary: Add a child to the family (parent only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChildInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /cycle/update:
+    post:
+      operationId: updateCycle
+      tags: [family]
+      summary: Update the cycle end date (parent only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CycleInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /cycle/close:
+    post:
+      operationId: closeCycle
+      tags: [family]
+      summary: Close the current cycle and start a new one (parent only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CycleCloseInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /tasks:
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create a task (parent only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /tasks/{id}:
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update a task (parent only)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdate"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete a task (parent only)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /tasks/{id}/toggle:
+    post:
+      operationId: toggleTask
+      tags: [tasks]
+      summary: Toggle a task active state (parent only)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /submissions:
+    post:
+      operationId: submitTask
+      tags: [submissions]
+      summary: Submit a task with proof (child only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmissionInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /submissions/{id}/review:
+    post:
+      operationId: reviewSubmission
+      tags: [submissions]
+      summary: Review a submission (parent only)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /submissions/{id}/appeal:
+    post:
+      operationId: appealSubmission
+      tags: [submissions]
+      summary: Appeal a reviewed submission (child only)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppealInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /submissions/{id}/appeal-review:
+    post:
+      operationId: reviewAppeal
+      tags: [submissions]
+      summary: Review an appeal (parent only)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppealReviewInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /goals:
+    post:
+      operationId: addGoal
+      tags: [goals]
+      summary: Add a savings goal (child only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /goals/{id}:
+    delete:
+      operationId: deleteGoal
+      tags: [goals]
+      summary: Delete a savings goal (child only)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /streak-bets:
+    post:
+      operationId: placeBet
+      tags: [bets]
+      summary: Place a streak bet (child only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BetInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Snapshot"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
 components:
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Snapshot:
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FamilySnapshot"
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +467,314 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    OkResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required:
+        - ok
+
+    PushTokenInput:
+      type: object
+      required: [pushToken]
+      properties:
+        pushToken: { type: string, minLength: 1 }
+
+    Family:
+      type: object
+      required:
+        - id
+        - name
+        - parentName
+        - cycleEndDate
+        - cycleStartDate
+      properties:
+        id: { type: string }
+        name: { type: string }
+        parentName: { type: string }
+        cycleEndDate: { type: string }
+        cycleStartDate: { type: string }
+
+    Child:
+      type: object
+      required: [id, familyId, name, nickname]
+      properties:
+        id: { type: string }
+        familyId: { type: string }
+        name: { type: string }
+        nickname: { type: string }
+
+    Task:
+      type: object
+      required:
+        - id
+        - familyId
+        - title
+        - description
+        - rewardCents
+        - frequency
+        - assignmentType
+        - assignedChildIds
+        - active
+        - createdAt
+      properties:
+        id: { type: string }
+        familyId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        rewardCents: { type: integer }
+        frequency: { type: string }
+        assignmentType: { type: string }
+        assignedChildIds:
+          type: array
+          items: { type: string }
+        active: { type: boolean }
+        createdAt: { type: string }
+
+    Submission:
+      type: object
+      required:
+        - id
+        - taskId
+        - childId
+        - familyId
+        - photoUri
+        - status
+        - rewardCentsAwarded
+        - submittedForDate
+        - submittedAt
+      properties:
+        id: { type: string }
+        taskId: { type: string }
+        childId: { type: string }
+        familyId: { type: string }
+        photoUri: { type: string }
+        status: { type: string }
+        rewardCentsAwarded: { type: integer }
+        submittedForDate: { type: string }
+        submittedAt: { type: string }
+        reviewedAt: { type: ["string", "null"] }
+        reviewNote: { type: ["string", "null"] }
+        appealText: { type: ["string", "null"] }
+        appealSubmittedAt: { type: ["string", "null"] }
+
+    Goal:
+      type: object
+      required: [id, childId, title, targetCents, createdAt]
+      properties:
+        id: { type: string }
+        childId: { type: string }
+        title: { type: string }
+        targetCents: { type: integer }
+        createdAt: { type: string }
+
+    StreakBet:
+      type: object
+      required:
+        - id
+        - childId
+        - familyId
+        - durationDays
+        - startDate
+        - startStreak
+        - status
+        - bonusPercent
+        - bonusCentsAwarded
+      properties:
+        id: { type: string }
+        childId: { type: string }
+        familyId: { type: string }
+        durationDays: { type: integer }
+        startDate: { type: string }
+        startStreak: { type: integer }
+        status: { type: string }
+        bonusPercent: { type: integer }
+        bonusCentsAwarded: { type: integer }
+        resolvedAt: { type: ["string", "null"] }
+
+    FamilySnapshot:
+      type: object
+      required: [family, children, tasks, submissions, goals, streakBets]
+      properties:
+        family:
+          $ref: "#/components/schemas/Family"
+        children:
+          type: array
+          items: { $ref: "#/components/schemas/Child" }
+        tasks:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+        submissions:
+          type: array
+          items: { $ref: "#/components/schemas/Submission" }
+        goals:
+          type: array
+          items: { $ref: "#/components/schemas/Goal" }
+        streakBets:
+          type: array
+          items: { $ref: "#/components/schemas/StreakBet" }
+
+    AuthResult:
+      type: object
+      required: [deviceToken, role, familyId, snapshot]
+      properties:
+        deviceToken: { type: string }
+        role: { type: string }
+        familyId: { type: string }
+        childId: { type: ["string", "null"] }
+        snapshot:
+          $ref: "#/components/schemas/FamilySnapshot"
+
+    FamilyCreationResult:
+      type: object
+      required: [deviceToken, role, familyId, snapshot]
+      properties:
+        deviceToken: { type: string }
+        role: { type: string }
+        familyId: { type: string }
+        childId: { type: ["string", "null"] }
+        snapshot:
+          $ref: "#/components/schemas/FamilySnapshot"
+
+    PairingCode:
+      type: object
+      required: [code, childId, expiresAt]
+      properties:
+        code: { type: string }
+        childId: { type: string }
+        expiresAt: { type: string }
+
+    ParentRecoveryInput:
+      type: object
+      required: [parentPin]
+      properties:
+        parentPin:
+          type: string
+          pattern: '^\d{6}$'
+
+    FamilySetupInput:
+      type: object
+      required:
+        - familyName
+        - parentName
+        - parentPin
+        - cycleEndDate
+        - childName
+        - childNickname
+      properties:
+        familyName: { type: string, minLength: 1 }
+        parentName: { type: string, minLength: 1 }
+        parentPin:
+          type: string
+          pattern: '^\d{6}$'
+        cycleEndDate: { type: string, minLength: 1 }
+        childName: { type: string, minLength: 1 }
+        childNickname: { type: string, minLength: 1 }
+
+    PairingCodeInput:
+      type: object
+      required: [childId]
+      properties:
+        childId: { type: string, minLength: 1 }
+
+    PairingRedeemInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, minLength: 1 }
+
+    ChildInput:
+      type: object
+      required: [name, nickname]
+      properties:
+        name: { type: string, minLength: 1 }
+        nickname: { type: string, minLength: 1 }
+
+    TaskInput:
+      type: object
+      required: [title, rewardCents, frequency]
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        rewardCents: { type: integer }
+        frequency: { type: string }
+        assignmentType: { type: string }
+        assignedChildIds:
+          type: array
+          items: { type: string }
+
+    TaskUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        rewardCents: { type: integer }
+        frequency: { type: string }
+        assignmentType: { type: string }
+        assignedChildIds:
+          type: array
+          items: { type: string }
+        active: { type: boolean }
+
+    SubmissionInput:
+      type: object
+      required: [taskId]
+      properties:
+        taskId: { type: string, minLength: 1 }
+        photoUri: { type: string }
+
+    ReviewInput:
+      type: object
+      required: [status, rewardCents]
+      properties:
+        status: { type: string }
+        rewardCents: { type: integer }
+        note: { type: string }
+
+    AppealInput:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1 }
+
+    AppealReviewInput:
+      type: object
+      required: [approved]
+      properties:
+        approved: { type: boolean }
+        note: { type: string }
+
+    GoalInput:
+      type: object
+      required: [title, targetCents]
+      properties:
+        title: { type: string, minLength: 1 }
+        targetCents: { type: integer }
+
+    BetInput:
+      type: object
+      required: [childId, durationDays]
+      properties:
+        childId: { type: string, minLength: 1 }
+        durationDays: { type: integer }
+
+    CycleInput:
+      type: object
+      required: [cycleEndDate]
+      properties:
+        cycleEndDate: { type: string, minLength: 1 }
+
+    CycleCloseInput:
+      type: object
+      required: [cycleEndDate]
+      properties:
+        cycleEndDate: { type: string, minLength: 1 }

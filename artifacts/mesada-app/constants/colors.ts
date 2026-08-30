@@ -30,6 +30,12 @@ const colors = {
     rejected: "#E53E3E",
     partial: "#ED8936",
     appealed: "#805AD5",
+    rewardBackground: "#FFF8E1",
+    rewardForeground: "#B7860B",
+    successBackground: "#F0FFF4",
+    destructiveBackground: "#FFF0F0",
+    tabBar: "rgba(255,255,255,0.88)",
+    overlay: "rgba(15,23,42,0.42)",
   },
   radius: 16,
 };

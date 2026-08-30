@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { cardShadow, layout } from '@/constants/layout';
 
 interface Props {
   xp: number;
@@ -13,7 +14,7 @@ export function XPBar({ xp, level }: Props) {
   const progress = xpInLevel / 50;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View style={[styles.container, cardShadow, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={[styles.levelBadge, { backgroundColor: colors.xp }]}>
         <Text style={[styles.levelText, { color: colors.xpForeground }]}>Nv {level}</Text>
       </View>
@@ -35,9 +36,8 @@ export function XPBar({ xp, level }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16,
+    flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: layout.radius.card,
     marginHorizontal: 16, marginVertical: 6, borderWidth: 1, gap: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4,
   },
   levelBadge: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   levelText: { fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },

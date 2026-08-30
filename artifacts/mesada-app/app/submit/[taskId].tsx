@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Platform,
-  Image, ActivityIndicator, Alert, ScrollView,
+  ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,9 @@ import * as Haptics from 'expo-haptics';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { formatCurrency } from '@/types';
+import { prepareProofPhoto, uploadProofPhoto } from '@/lib/object-storage';
+import { ProofPhoto } from '@/components/ProofPhoto';
+import { bottomInset, cardShadow, layout, topInset } from '@/constants/layout';
 
 export default function SubmitTaskScreen() {
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
@@ -43,8 +46,13 @@ export default function SubmitTaskScreen() {
       cameraType: ImagePicker.CameraType.back,
     });
     if (!result.canceled) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setPhotoUri(result.assets[0].uri);
+      try {
+        const normalizedUri = await prepareProofPhoto(result.assets[0].uri);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setPhotoUri(normalizedUri);
+      } catch {
+        Alert.alert('Não foi possível preparar a foto', 'Tire a foto novamente e tente outra vez.');
+      }
     }
   };
 
@@ -52,15 +60,23 @@ export default function SubmitTaskScreen() {
     if (!photoUri) { Alert.alert('Atenção', 'Tire uma foto como comprovação antes de enviar.'); return; }
     if (!taskId) return;
     setLoading(true);
-    await new Promise(r => setTimeout(r, 500));
-    submitTask(taskId, photoUri);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setLoading(false);
-    router.back();
+    try {
+      const photoUrl = await uploadProofPhoto(photoUri);
+      await submitTask(taskId, photoUrl);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (err) {
+      Alert.alert(
+        'Não foi possível enviar',
+        'Verifique sua conexão e tente novamente.',
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
-  const botPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
+  const topPad = topInset(insets.top);
+  const botPad = bottomInset(insets.bottom);
 
   if (!task) {
     return (
@@ -82,7 +98,7 @@ export default function SubmitTaskScreen() {
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: botPad + 24 }]} keyboardShouldPersistTaps="handled">
         {/* Task details */}
-        <View style={[styles.taskInfo, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.taskInfo, cardShadow, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.taskIcon, { backgroundColor: colors.secondary }]}>
             <Ionicons name="checkmark-done" size={28} color={colors.primary} />
           </View>
@@ -91,9 +107,9 @@ export default function SubmitTaskScreen() {
             {task.description ? (
               <Text style={[styles.taskDesc, { color: colors.mutedForeground }]}>{task.description}</Text>
             ) : null}
-            <View style={[styles.rewardBadge, { backgroundColor: '#FFF8E1' }]}>
-              <Ionicons name="cash" size={14} color="#F6C90E" />
-              <Text style={styles.rewardText}>{formatCurrency(task.rewardCents)}</Text>
+            <View style={[styles.rewardBadge, { backgroundColor: colors.rewardBackground }]}>
+              <Ionicons name="cash" size={14} color={colors.accent} />
+              <Text style={[styles.rewardText, { color: colors.rewardForeground }]}>{formatCurrency(task.rewardCents)}</Text>
             </View>
           </View>
         </View>
@@ -103,8 +119,14 @@ export default function SubmitTaskScreen() {
 
         {photoUri ? (
           <View style={styles.photoPreviewContainer}>
-            <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
-            <TouchableOpacity style={[styles.changePhotoBtn, { backgroundColor: colors.card }]} onPress={takePhoto}>
+            <ProofPhoto
+              uri={photoUri}
+              style={styles.photoPreview}
+              accessibilityLabel="Prévia da foto de comprovação"
+              emptyLabel="Não foi possível carregar a foto"
+              iconSize={44}
+            />
+            <TouchableOpacity style={[styles.changePhotoBtn, cardShadow, { backgroundColor: colors.card }]} onPress={takePhoto}>
               <Ionicons name="camera" size={18} color={colors.primary} />
               <Text style={[styles.changePhotoText, { color: colors.primary }]}>Tirar outra foto</Text>
             </TouchableOpacity>
@@ -163,15 +185,14 @@ const styles = StyleSheet.create({
   content: { padding: 20, gap: 16 },
   taskInfo: {
     flexDirection: 'row', alignItems: 'flex-start', padding: 16,
-    borderRadius: 16, borderWidth: 1, gap: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4,
+    borderRadius: layout.radius.card, borderWidth: 1, gap: 14,
   },
   taskIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   taskDetails: { flex: 1, gap: 6 },
   taskTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   taskDesc: { fontSize: 14, fontFamily: 'Inter_400Regular' },
   rewardBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, alignSelf: 'flex-start' },
-  rewardText: { fontSize: 14, fontWeight: '700' as const, color: '#B7860B', fontFamily: 'Inter_700Bold' },
+  rewardText: { fontSize: 14, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   sectionLabel: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   photoBtn: {
     alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -180,11 +201,10 @@ const styles = StyleSheet.create({
   photoBtnTitle: { fontSize: 18, fontWeight: '700' as const, color: '#ffffff', fontFamily: 'Inter_700Bold' },
   photoBtnSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_400Regular' },
   photoPreviewContainer: { gap: 10 },
-  photoPreview: { width: '100%', height: 240, borderRadius: 20 },
+  photoPreview: { width: '100%', height: 240, borderRadius: layout.radius.large },
   changePhotoBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, padding: 12, borderRadius: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4,
+    gap: 8, padding: 12, borderRadius: layout.radius.medium,
   },
   changePhotoText: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   hint: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12 },

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Platform, Modal, TextInput, Alert, ScrollView,
+  TextInput, Alert, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,8 @@ import * as Haptics from 'expo-haptics';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { Task, TaskFrequency, TaskAssignmentType, formatCurrency } from '@/types';
+import { AppSheet } from '@/components/AppSheet';
+import { bottomInset, cardShadow, layout, topInset } from '@/constants/layout';
 
 const FREQ_OPTIONS: { label: string; value: TaskFrequency; icon: keyof typeof Ionicons.glyphMap }[] = [
   { label: 'Diária', value: 'daily', icon: 'sunny' },
@@ -23,12 +25,6 @@ const ASSIGN_OPTIONS: { label: string; value: TaskAssignmentType; icon: keyof ty
 ];
 
 const REWARD_PRESETS = [500, 1000, 2000, 5000];
-
-const ASSIGNMENT_COLORS: Record<TaskAssignmentType, string> = {
-  all: '#4CAF50',
-  individual: '#2196F3',
-  first: '#FF9800',
-};
 
 const ASSIGNMENT_LABELS: Record<TaskAssignmentType, string> = {
   all: 'Todos',
@@ -55,7 +51,12 @@ export default function TasksScreen() {
   const [assignmentType, setAssignmentType] = useState<TaskAssignmentType>('all');
   const [selectedChildIds, setSelectedChildIds] = useState<string[]>([]);
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+  const topPad = topInset(insets.top);
+  const assignmentColors: Record<TaskAssignmentType, string> = {
+    all: colors.success,
+    individual: colors.info,
+    first: colors.warning,
+  };
 
   const openCreate = () => {
     setEditingTask(null);
@@ -141,7 +142,7 @@ export default function TasksScreen() {
   const renderTask = ({ item }: { item: Task }) => {
     const aType = item.assignmentType ?? 'all';
     const claimed = aType === 'first' && isTaskClaimedForCycle(item.id);
-    const badgeColor = ASSIGNMENT_COLORS[aType];
+    const badgeColor = assignmentColors[aType];
     return (
       <View style={[styles.taskCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: item.active ? 1 : 0.6 }]}>
         <View style={[styles.taskIcon, { backgroundColor: item.active ? colors.secondary : colors.muted }]}>
@@ -158,9 +159,9 @@ export default function TasksScreen() {
               <Text style={[styles.assignBadgeText, { color: badgeColor }]}>{getAssignmentLabel(item)}</Text>
               {claimed && <Text style={[styles.assignBadgeText, { color: badgeColor }]}>· Conquistada</Text>}
             </View>
-            <View style={[styles.rewardBadge, { backgroundColor: '#FFF8E1' }]}>
-              <Ionicons name="cash" size={12} color="#F6C90E" />
-              <Text style={styles.rewardText}>{formatCurrency(item.rewardCents)}</Text>
+            <View style={[styles.rewardBadge, { backgroundColor: colors.rewardBackground }]}>
+              <Ionicons name="cash" size={12} color={colors.accent} />
+              <Text style={[styles.rewardText, { color: colors.rewardForeground }]}>{formatCurrency(item.rewardCents)}</Text>
             </View>
           </View>
         </View>
@@ -193,7 +194,7 @@ export default function TasksScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 100 },
+          { paddingBottom: bottomInset(insets.bottom) + 100 },
         ]}
         ListHeaderComponent={
           tasks.length > 0 ? (
@@ -219,19 +220,13 @@ export default function TasksScreen() {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Create Task Modal */}
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
-        <View style={[styles.modal, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setShowModal(false)}>
-              <Text style={[styles.cancelText, { color: colors.destructive }]}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>{editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}</Text>
-            <TouchableOpacity onPress={handleSave}>
-              <Text style={[styles.saveText, { color: colors.primary }]}>Salvar</Text>
-            </TouchableOpacity>
-          </View>
-
+      <AppSheet
+        visible={showModal}
+        title={editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}
+        onClose={() => setShowModal(false)}
+        actionLabel="Salvar"
+        onAction={handleSave}
+      >
           <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
             <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Nome da tarefa</Text>
             <TextInput
@@ -294,7 +289,7 @@ export default function TasksScreen() {
             <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Quem deve fazer?</Text>
             {ASSIGN_OPTIONS.map(opt => {
               const selected = assignmentType === opt.value;
-              const aColor = ASSIGNMENT_COLORS[opt.value];
+              const aColor = assignmentColors[opt.value];
               return (
                 <TouchableOpacity
                   key={opt.value}
@@ -328,17 +323,17 @@ export default function TasksScreen() {
                     <TouchableOpacity
                       key={child.id}
                       style={[styles.childRow, {
-                        backgroundColor: picked ? '#2196F315' : colors.card,
-                        borderColor: picked ? '#2196F3' : colors.border,
+                        backgroundColor: picked ? colors.successBackground : colors.card,
+                        borderColor: picked ? colors.info : colors.border,
                       }]}
                       onPress={() => toggleChild(child.id)}
                     >
-                      <View style={[styles.childAvatar, { backgroundColor: picked ? '#2196F3' : colors.muted }]}>
+                      <View style={[styles.childAvatar, { backgroundColor: picked ? colors.info : colors.muted }]}>
                         <Text style={styles.childAvatarText}>{child.name[0].toUpperCase()}</Text>
                       </View>
                       <Text style={[styles.childName, { color: colors.foreground }]}>{child.name}</Text>
                       {picked
-                        ? <Ionicons name="checkmark-circle" size={22} color="#2196F3" />
+                        ? <Ionicons name="checkmark-circle" size={22} color={colors.info} />
                         : <Ionicons name="ellipse-outline" size={22} color={colors.mutedForeground} />
                       }
                     </TouchableOpacity>
@@ -357,16 +352,15 @@ export default function TasksScreen() {
             )}
 
             {assignmentType === 'first' && (
-              <View style={[styles.firstNote, { backgroundColor: '#FF980015', borderColor: '#FF9800' }]}>
-                <Ionicons name="flash" size={16} color="#FF9800" />
-                <Text style={[styles.firstNoteText, { color: '#FF9800' }]}>
+              <View style={[styles.firstNote, { backgroundColor: colors.rewardBackground, borderColor: colors.warning }]}>
+                <Ionicons name="flash" size={16} color={colors.warning} />
+                <Text style={[styles.firstNoteText, { color: colors.warning }]}>
                   O primeiro filho a ter a tarefa aprovada ganha a recompensa. A tarefa some para os outros.
                 </Text>
               </View>
             )}
           </ScrollView>
-        </View>
-      </Modal>
+      </AppSheet>
     </View>
   );
 }
@@ -382,9 +376,9 @@ const styles = StyleSheet.create({
   list: { paddingTop: 16 },
   sectionTitle: { fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', paddingHorizontal: 16, marginBottom: 8, opacity: 0.7 },
   taskCard: {
-    flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16,
+    flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: layout.radius.card,
     marginHorizontal: 16, marginVertical: 5, borderWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4,
+    ...cardShadow,
   },
   taskIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   taskInfo: { flex: 1, gap: 4 },
@@ -394,7 +388,7 @@ const styles = StyleSheet.create({
   assignBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
   assignBadgeText: { fontSize: 11, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   rewardBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  rewardText: { fontSize: 12, fontWeight: '600' as const, color: '#B7860B', fontFamily: 'Inter_600SemiBold' },
+  rewardText: { fontSize: 12, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   taskActions: { flexDirection: 'row', gap: 4 },
   actionBtn: { padding: 6 },
   emptyState: { alignItems: 'center', paddingTop: 80, gap: 12, paddingHorizontal: 40 },
@@ -402,14 +396,6 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
   emptyBtnText: { color: '#ffffff', fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
-  modal: { flex: 1 },
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, paddingTop: 20, borderBottomWidth: 1,
-  },
-  cancelText: { fontSize: 16, fontFamily: 'Inter_500Medium' },
-  modalTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  saveText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   modalContent: { padding: 20, gap: 8, paddingBottom: 60 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', marginTop: 8 },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: 'Inter_400Regular' },

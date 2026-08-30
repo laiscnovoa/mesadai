@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  Platform, Alert, Modal,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Share,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
+import QRCode from 'react-native-qrcode-svg';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { formatCurrency, formatDate } from '@/types';
+import { AppSheet } from '@/components/AppSheet';
+import { bottomInset, cardShadow, layout, topInset } from '@/constants/layout';
 
 function parseDateBR(digits: string): string | null {
   if (digits.length !== 8) return null;
@@ -36,7 +39,7 @@ export default function CycleScreen() {
   const {
     family, children, submissions, streakBets,
     getChildBalance, getChildStreak, getCycleDay, getCycleEndDate,
-    closeCycle, addChild,
+    closeCycle, addChild, createPairingCode,
   } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -46,8 +49,9 @@ export default function CycleScreen() {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [newEndDateInput, setNewEndDateInput] = useState('');
   const [showBetHistory, setShowBetHistory] = useState(false);
+  const [pairing, setPairing] = useState<{ code: string; expiresAt: string; childName: string } | null>(null);
 
-  const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
+  const topPad = topInset(insets.top);
   const cycleDay = getCycleDay();
   const cycleEnd = getCycleEndDate();
 
@@ -103,10 +107,44 @@ export default function CycleScreen() {
       Alert.alert('Atenção', 'Já existe um(a) filho(a) com esse apelido.');
       return;
     }
-    addChild(newChildName, newChildNickname);
+    void addChild(newChildName, newChildNickname);
     setNewChildName('');
     setNewChildNickname('');
     setShowAddChild(false);
+  };
+
+  const generateCodeForChild = async (childId: string, childName: string) => {
+    const result = await createPairingCode(childId);
+    if (!result) return;
+    await Clipboard.setStringAsync(result.code);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setPairing({ ...result, childName });
+  };
+
+  const sharePairingCode = async () => {
+    if (!pairing) return;
+    await Share.share({
+      message: `Código de pareamento do MesadAI para ${pairing.childName}: ${pairing.code}\n\nDigite este código no celular do adolescente. Ele expira em alguns minutos.`,
+    });
+  };
+
+  const handlePairDevice = () => {
+    if (children.length === 0) {
+      Alert.alert('Atenção', 'Adicione um(a) filho(a) primeiro.');
+      return;
+    }
+    if (children.length === 1) {
+      void generateCodeForChild(children[0].id, children[0].name);
+      return;
+    }
+    Alert.alert(
+      'Parear dispositivo',
+      'Para qual filho(a) você quer gerar o código?',
+      [
+        ...children.map(c => ({ text: c.name, onPress: () => { void generateCodeForChild(c.id, c.name); } })),
+        { text: 'Cancelar', style: 'cancel' as const },
+      ],
+    );
   };
 
   return (
@@ -116,7 +154,7 @@ export default function CycleScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 100 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomInset(insets.bottom) + 100 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Cycle Progress Card */}
@@ -151,7 +189,7 @@ export default function CycleScreen() {
             return (
               <View key={child.id} style={[styles.childCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={[styles.childAvatar, { backgroundColor: colors.secondary }]}>
-                  <Text style={styles.childEmoji}>🐷</Text>
+                  <Ionicons name="wallet-outline" size={22} color={colors.secondaryForeground} />
                 </View>
                 <View style={styles.childInfo}>
                   <Text style={[styles.childName, { color: colors.foreground }]}>{child.name}</Text>
@@ -170,7 +208,10 @@ export default function CycleScreen() {
         {children.length > 0 && (
           <>
             <View style={styles.betSectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🎯 Bônus Ativos</Text>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="trophy-outline" size={19} color={colors.warning} />
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Bônus Ativos</Text>
+              </View>
               {activeBets.length === 0 && (
                 <Text style={[styles.betNone, { color: colors.mutedForeground }]}>Nenhum bônus ativo</Text>
               )}
@@ -188,13 +229,17 @@ export default function CycleScreen() {
                 <View key={bet.id} style={[styles.betCard, { backgroundColor: colors.card, borderColor: colors.streak }]}>
                   <View style={styles.betCardTop}>
                     <View style={[styles.betAvatar, { backgroundColor: colors.secondary }]}>
-                      <Text style={styles.betAvatarEmoji}>🐷</Text>
+                      <Ionicons name="wallet-outline" size={19} color={colors.secondaryForeground} />
                     </View>
                     <View style={styles.betCardInfo}>
                       <Text style={[styles.betChildName, { color: colors.foreground }]}>{child.name}</Text>
-                      <Text style={[styles.betMeta, { color: colors.mutedForeground }]}>
-                        {bet.durationDays} dias · +{bet.bonusPercent}% · 🔥 streak {streak}
-                      </Text>
+                      <View style={styles.betMetaRow}>
+                        <Text style={[styles.betMeta, { color: colors.mutedForeground }]}>
+                          {bet.durationDays} dias · +{bet.bonusPercent}% ·
+                        </Text>
+                        <Ionicons name="flame" size={12} color={colors.streak} />
+                        <Text style={[styles.betMeta, { color: colors.mutedForeground }]}>streak {streak}</Text>
+                      </View>
                     </View>
                     <View style={styles.betCardRight}>
                       <Text style={[styles.betBonus, { color: colors.success }]}>{formatCurrency(bonusEstimate)}</Text>
@@ -244,7 +289,7 @@ export default function CycleScreen() {
                     borderColor: won ? colors.success : colors.rejected,
                   }]}
                 >
-                  <View style={[styles.resolvedIcon, { backgroundColor: won ? '#F0FFF4' : '#FFF0F0' }]}>
+                  <View style={[styles.resolvedIcon, { backgroundColor: won ? colors.successBackground : colors.destructiveBackground }]}>
                     <Ionicons name={won ? 'trophy' : 'close-circle'} size={18} color={won ? colors.success : colors.destructive} />
                   </View>
                   <View style={styles.resolvedInfo}>
@@ -271,36 +316,6 @@ export default function CycleScreen() {
 
         {/* Add child */}
         {children.length < 3 && (
-          showAddChild ? (
-            <View style={[styles.addChildCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Nome completo</Text>
-              <TextInput
-                style={[styles.textInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Ex: João"
-                placeholderTextColor={colors.mutedForeground}
-                value={newChildName}
-                onChangeText={setNewChildName}
-              />
-              <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Apelido (para login)</Text>
-              <TextInput
-                style={[styles.textInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Ex: joaozinho"
-                placeholderTextColor={colors.mutedForeground}
-                value={newChildNickname}
-                onChangeText={setNewChildNickname}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
-                onPress={handleAddChild}
-              >
-                <Text style={styles.confirmBtnText}>Adicionar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowAddChild(false)}>
-                <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
             <TouchableOpacity
               style={[styles.addChildBtn, { borderColor: colors.primary }]}
               onPress={() => setShowAddChild(true)}
@@ -308,27 +323,24 @@ export default function CycleScreen() {
               <Ionicons name="person-add-outline" size={18} color={colors.primary} />
               <Text style={[styles.addChildText, { color: colors.primary }]}>Adicionar filho(a)</Text>
             </TouchableOpacity>
-          )
         )}
 
-        {/* PIN Info */}
+        {/* Pair device */}
         {family && (
           <TouchableOpacity
             style={[styles.pinCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={async () => {
-              await Clipboard.setStringAsync(family.pin);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('PIN copiado!', 'Cole onde precisar compartilhar com o adolescente ou outro responsável.');
-            }}
+            onPress={handlePairDevice}
             activeOpacity={0.8}
           >
-            <Ionicons name="key" size={22} color={colors.accent} />
+            <Ionicons name="phone-portrait-outline" size={22} color={colors.accent} />
             <View style={styles.pinInfo}>
-              <Text style={[styles.pinLabel, { color: colors.foreground }]}>PIN do adolescente</Text>
-              <Text style={[styles.pinValue, { color: colors.primary }]}>{family.pin}</Text>
+              <Text style={[styles.pinLabel, { color: colors.foreground }]}>Parear dispositivo do adolescente</Text>
+              <Text style={[styles.pinValue, { color: colors.mutedForeground, fontSize: 13, fontWeight: '400' }]}>
+                Gere um código para o celular do(a) filho(a)
+              </Text>
             </View>
             <View style={styles.copyChip}>
-              <Ionicons name="copy-outline" size={16} color={colors.mutedForeground} />
+              <Ionicons name="qr-code-outline" size={16} color={colors.mutedForeground} />
             </View>
           </TouchableOpacity>
         )}
@@ -344,20 +356,70 @@ export default function CycleScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Close Cycle Modal */}
-      <Modal visible={showCloseModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowCloseModal(false)}>
-        <View style={[styles.modal, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setShowCloseModal(false)}>
-              <Text style={[styles.cancelTxt, { color: colors.mutedForeground }]}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Novo ciclo</Text>
-            <TouchableOpacity onPress={handleConfirmClose}>
-              <Text style={[styles.saveTxt, { color: colors.primary }]}>Confirmar</Text>
-            </TouchableOpacity>
-          </View>
+      <AppSheet
+        visible={pairing !== null}
+        title="Parear adolescente"
+        onClose={() => setPairing(null)}
+      >
+          {pairing && (
+            <ScrollView contentContainerStyle={styles.pairingModalContent}>
+              <Ionicons name="qr-code-outline" size={44} color={colors.primary} />
+              <Text style={[styles.pairingTitle, { color: colors.foreground }]}>
+                Escaneie este código
+              </Text>
+              <Text style={[styles.modalDesc, { color: colors.mutedForeground }]}>
+                No celular de {pairing.childName}, abra “Sou Adolescente” e toque em “Ler QR Code”.
+              </Text>
+              <View style={[styles.qrFrame, { backgroundColor: '#ffffff', borderColor: colors.border }]}>
+                <QRCode
+                  value={pairing.code}
+                  size={210}
+                  color="#101820"
+                  backgroundColor="#ffffff"
+                  ecl="H"
+                  quietZone={12}
+                />
+              </View>
+              <Text style={[styles.fallbackLabel, { color: colors.mutedForeground }]}>
+                Ou digite o código no outro celular
+              </Text>
+              <Text style={[styles.pairingCode, { color: colors.primary }]}>{pairing.code}</Text>
+              <Text style={[styles.expiryText, { color: colors.mutedForeground }]}>
+                O código foi copiado automaticamente e expira em alguns minutos.
+              </Text>
+              <TouchableOpacity
+                style={[styles.sharePairingBtn, { backgroundColor: colors.primary }]}
+                onPress={() => { void sharePairingCode(); }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="share-outline" size={20} color="#ffffff" />
+                <Text style={styles.sharePairingText}>Compartilhar código</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.copyPairingBtn, { borderColor: colors.border }]}
+                onPress={() => {
+                  void Clipboard.setStringAsync(pairing.code);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  Alert.alert('Código copiado', 'O código está pronto para ser enviado.');
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="copy-outline" size={19} color={colors.primary} />
+                <Text style={[styles.copyPairingText, { color: colors.primary }]}>Copiar novamente</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          )}
+      </AppSheet>
+
+      <AppSheet
+        visible={showCloseModal}
+        title="Novo ciclo"
+        onClose={() => setShowCloseModal(false)}
+        actionLabel="Confirmar"
+        onAction={handleConfirmClose}
+      >
           <View style={styles.modalContent}>
-            <Text style={styles.modalEmoji}>🔄</Text>
+            <Ionicons name="refresh-circle-outline" size={48} color={colors.primary} style={styles.modalIcon} />
             <Text style={[styles.modalDesc, { color: colors.mutedForeground }]}>
               O ciclo atual será encerrado e um novo começa hoje. Escolha a data de encerramento do próximo ciclo.
             </Text>
@@ -373,8 +435,36 @@ export default function CycleScreen() {
               autoFocus
             />
           </View>
+      </AppSheet>
+
+      <AppSheet
+        visible={showAddChild}
+        title="Adicionar filho(a)"
+        onClose={() => setShowAddChild(false)}
+        actionLabel="Adicionar"
+        onAction={handleAddChild}
+      >
+        <View style={styles.addChildSheetContent}>
+          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Nome completo</Text>
+          <TextInput
+            style={[styles.textInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+            placeholder="Ex: João"
+            placeholderTextColor={colors.mutedForeground}
+            value={newChildName}
+            onChangeText={setNewChildName}
+            autoFocus
+          />
+          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Apelido (para login)</Text>
+          <TextInput
+            style={[styles.textInput, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+            placeholder="Ex: joaozinho"
+            placeholderTextColor={colors.mutedForeground}
+            value={newChildNickname}
+            onChangeText={setNewChildNickname}
+            autoCapitalize="none"
+          />
         </View>
-      </Modal>
+      </AppSheet>
     </View>
   );
 }
@@ -384,7 +474,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   headerTitle: { fontSize: 22, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   content: { padding: 16, gap: 12 },
-  card: { borderRadius: 20, padding: 20, gap: 10 },
+  card: { borderRadius: layout.radius.large, padding: 20, gap: 10, ...cardShadow },
   cardLabel: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_500Medium' },
   cardDates: { fontSize: 16, fontWeight: '600' as const, color: '#ffffff', fontFamily: 'Inter_600SemiBold' },
   progressBarBg: { height: 8, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 4, overflow: 'hidden' },
@@ -393,14 +483,13 @@ const styles = StyleSheet.create({
   progressDay: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_500Medium' },
   progressLeft: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_600SemiBold' },
   sectionTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', marginTop: 4 },
-  emptyCard: { borderRadius: 14, padding: 20, borderWidth: 1, alignItems: 'center' },
+  emptyCard: { borderRadius: layout.radius.card, padding: 20, borderWidth: 1, alignItems: 'center', ...cardShadow },
   emptyText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
   childCard: {
-    flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4,
+    flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: layout.radius.card, borderWidth: 1,
+    ...cardShadow,
   },
   childAvatar: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  childEmoji: { fontSize: 24 },
   childInfo: { flex: 1 },
   childName: { fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   childNick: { fontSize: 12, fontFamily: 'Inter_400Regular' },
@@ -408,17 +497,18 @@ const styles = StyleSheet.create({
   childBalance: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   childTasks: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   betSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   betNone: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   betCard: {
-    borderRadius: 16, borderWidth: 1.5, padding: 14, gap: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4,
+    borderRadius: layout.radius.card, borderWidth: 1.5, padding: 14, gap: 10,
+    ...cardShadow,
   },
   betCardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   betAvatar: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  betAvatarEmoji: { fontSize: 20 },
   betCardInfo: { flex: 1 },
   betChildName: { fontSize: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   betMeta: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  betMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   betCardRight: { alignItems: 'flex-end', gap: 2 },
   betBonus: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   betDaysLeft: { fontSize: 11, fontFamily: 'Inter_400Regular' },
@@ -427,7 +517,8 @@ const styles = StyleSheet.create({
   betProgressLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', textAlign: 'right' },
   betHistToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   resolvedBetCard: {
-    flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, borderWidth: 1.5, gap: 10,
+    flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: layout.radius.card, borderWidth: 1.5, gap: 10,
+    ...cardShadow,
   },
   resolvedIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   resolvedInfo: { flex: 1 },
@@ -438,18 +529,15 @@ const styles = StyleSheet.create({
   resolvedBonus: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   addChildBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, padding: 14, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed',
+    gap: 8, padding: 14, borderRadius: layout.radius.card, borderWidth: 1.5, borderStyle: 'dashed',
   },
   addChildText: { fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
-  addChildCard: { borderRadius: 14, padding: 16, borderWidth: 1, gap: 10 },
+  addChildSheetContent: { padding: 20, paddingBottom: 28, gap: 10 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
   textInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: 'Inter_400Regular' },
-  confirmBtn: { borderRadius: 12, padding: 12, alignItems: 'center' },
-  confirmBtnText: { color: '#ffffff', fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  cancelText: { textAlign: 'center', fontSize: 14, fontFamily: 'Inter_400Regular' },
   pinCard: {
-    flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, gap: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4,
+    flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: layout.radius.card, borderWidth: 1, gap: 14,
+    ...cardShadow,
   },
   pinInfo: { flex: 1 },
   pinLabel: { fontSize: 13, fontFamily: 'Inter_400Regular' },
@@ -461,18 +549,26 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, padding: 16, borderRadius: 16, borderWidth: 1.5, marginTop: 8,
+    gap: 10, padding: 16, borderRadius: layout.radius.card, borderWidth: 1.5, marginTop: 8,
   },
   closeBtnText: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  modal: { flex: 1 },
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, paddingTop: 20, borderBottomWidth: 1,
-  },
-  cancelTxt: { fontSize: 16, fontFamily: 'Inter_500Medium' },
-  modalTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  saveTxt: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   modalContent: { padding: 24, gap: 12, alignItems: 'stretch' },
-  modalEmoji: { fontSize: 48, textAlign: 'center' },
+  modalIcon: { alignSelf: 'center' },
   modalDesc: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 20 },
+  pairingModalContent: { alignItems: 'center', padding: 24, gap: 12 },
+  pairingTitle: { fontSize: 24, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', textAlign: 'center' },
+  qrFrame: { padding: 18, borderRadius: 20, borderWidth: 1, marginVertical: 8 },
+  fallbackLabel: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 4 },
+  pairingCode: { fontSize: 34, fontWeight: '700' as const, letterSpacing: 8, fontFamily: 'Inter_700Bold' },
+  expiryText: { fontSize: 12, textAlign: 'center', fontFamily: 'Inter_400Regular' },
+  sharePairingBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14, paddingHorizontal: 24, borderRadius: 14, marginTop: 8, width: '100%',
+  },
+  sharePairingText: { color: '#ffffff', fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  copyPairingBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 13, paddingHorizontal: 24, borderRadius: 14, borderWidth: 1.5, width: '100%',
+  },
+  copyPairingText: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
 });

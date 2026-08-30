@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, Alert,
+  View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { AppSheet } from '@/components/AppSheet';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { cardShadow, layout } from '@/constants/layout';
 import { StreakBetDuration, STREAK_BET_BONUS, formatCurrency } from '@/types';
 
 interface Props {
@@ -43,14 +45,14 @@ export function BetModal({ visible, onClose, childId }: Props) {
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Ativar!',
-          onPress: () => {
-            const ok = placeBet(childId, selected);
+          onPress: async () => {
+            const ok = await placeBet(childId, selected);
             if (ok) {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               setSelected(null);
               onClose();
             } else {
-              Alert.alert('Erro', 'Não foi possível ativar o bônus.');
+              Alert.alert('Erro', 'Não foi possível ativar o bônus. Pode já existir um bônus ativo ou você está sem conexão.');
             }
           },
         },
@@ -59,21 +61,19 @@ export function BetModal({ visible, onClose, childId }: Props) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancelar</Text>
-          </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.foreground }]}>Ativar Bônus</Text>
-          <TouchableOpacity onPress={handleConfirm} disabled={hasActiveBet || !selected}>
-            <Text style={[styles.confirmText, { color: hasActiveBet || !selected ? colors.mutedForeground : colors.primary }]}>
-              Ativar!
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.content}>
+    <AppSheet
+      visible={visible}
+      title="Ativar Bônus"
+      onClose={onClose}
+      actionLabel="Ativar!"
+      onAction={handleConfirm}
+      actionDisabled={hasActiveBet || !selected}
+    >
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
           <View style={styles.heroRow}>
             <Text style={styles.heroEmoji}>🔥</Text>
             <View style={styles.heroText}>
@@ -103,13 +103,17 @@ export function BetModal({ visible, onClose, childId }: Props) {
                 style={[
                   styles.optionCard,
                   {
-                    backgroundColor: isSelected ? colors.primary + '15' : colors.card,
+                    backgroundColor: isSelected ? colors.secondary : colors.card,
                     borderColor: isSelected ? colors.primary : colors.border,
                   },
+                  cardShadow,
                 ]}
                 onPress={() => !hasActiveBet && setSelected(opt.days)}
                 activeOpacity={hasActiveBet ? 1 : 0.7}
                 disabled={hasActiveBet}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: isSelected, disabled: hasActiveBet }}
+                accessibilityLabel={`${opt.days} dias, bônus de ${bonusPct}%`}
               >
                 <Text style={styles.optionEmoji}>{opt.emoji}</Text>
                 <View style={styles.optionInfo}>
@@ -132,25 +136,16 @@ export function BetModal({ visible, onClose, childId }: Props) {
           <Text style={[styles.disclaimer, { color: colors.mutedForeground }]}>
             O bônus é calculado sobre o saldo do ciclo quando você completar o streak.
           </Text>
-        </View>
-      </View>
-    </Modal>
+      </ScrollView>
+    </AppSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, paddingTop: 20, borderBottomWidth: 1,
-  },
-  cancelText: { fontSize: 16, fontFamily: 'Inter_500Medium' },
-  title: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  confirmText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-  content: { padding: 20, gap: 12 },
+  content: { padding: layout.spacing.screen, gap: 12, paddingBottom: 24 },
   heroRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 4 },
   heroEmoji: { fontSize: 40 },
-  heroText: { flex: 1 },
+  heroText: { flex: 1, minWidth: 0 },
   heroTitle: { fontSize: 17, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   heroDesc: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 2, lineHeight: 18 },
   activeBanner: {
@@ -160,13 +155,13 @@ const styles = StyleSheet.create({
   activeBannerText: { flex: 1, fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
   optionCard: {
     flexDirection: 'row', alignItems: 'center', padding: 16,
-    borderRadius: 16, borderWidth: 1.5, gap: 12,
+    borderRadius: layout.radius.card, borderWidth: 1.5, gap: 12,
   },
   optionEmoji: { fontSize: 28 },
-  optionInfo: { flex: 1 },
+  optionInfo: { flex: 1, minWidth: 0 },
   optionDays: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   optionLabel: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  optionBonus: { alignItems: 'flex-end', gap: 2 },
+  optionBonus: { alignItems: 'flex-end', gap: 2, flexShrink: 1 },
   bonusPct: { fontSize: 18, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   bonusEst: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   checkIcon: { marginLeft: 4 },

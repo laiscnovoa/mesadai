@@ -35,8 +35,6 @@ export interface Family {
   id: string;
   name: string;
   parentName: string;
-  pin: string;
-  parentPin: string;
   cycleEndDate: string;
   cycleStartDate: string;
 }
