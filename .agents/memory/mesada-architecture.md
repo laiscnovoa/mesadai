@@ -27,3 +27,5 @@ description: Durable decisions for MesadAI's multi-device cloud sync, auth, and 
 
 ## Gotcha
 - Metro can crash on restart with a transient `ENOENT` watch error if a pnpm install is running concurrently — just restart the expo workflow after installs finish.
+- Ionicons (and any `@expo/vector-icons` set) can render as tofu/missing-glyph boxes on Android while looking fine on iOS, because the icon font isn't guaranteed loaded before first paint on Android. Fix: spread `Ionicons.font` into the `useFonts` call in `app/_layout.tsx` alongside the Inter fonts, so the icon font is awaited the same way. Fixed in [_layout.tsx](../../artifacts/mesada-app/app/_layout.tsx).
+- Root `pnpm --filter @workspace/mesada-app run typecheck` requires the workspace libs (`lib/api-client-react` etc.) to be built first — run `tsc --build` from the repo root (or the root `pnpm run typecheck` which does `typecheck:libs` first), otherwise you get spurious `TS6305` "Output file has not been built" errors unrelated to your change.
